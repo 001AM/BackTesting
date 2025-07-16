@@ -9,9 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   
-  plugins: [react(), tailwindcss({
-    config: "./tailwind.config.js", // Explicitly point to your config
-  })],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
