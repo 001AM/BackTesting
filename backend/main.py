@@ -47,14 +47,14 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(process_time)
     return response
 
-# from backend.api.v1.endpoints import logs, project, organization, prompt, usersllmintegrations, providers, api_key
-#
-# # Include routers
-# app.include_router(
-#     auth.router,
-#     prefix=f"{settings.API_V1_PREFIX}/auth",
-#     tags=["authentication"]
-# )
+from backend.api.v1.endpoints import populate
+
+# Include routers
+app.include_router(
+    populate.router,
+    prefix=f"{settings.API_V1_PREFIX}/populate",
+    tags=["populate"]
+)
 
 
 # Health check endpoint
