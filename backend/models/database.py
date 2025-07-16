@@ -109,6 +109,7 @@ class StockPrice(Base):
 # ─────────────────────────────────────────────────────────────────────────────
 # Fundamental Data Table
 # ─────────────────────────────────────────────────────────────────────────────
+# Enhanced FundamentalData class with growth metrics
 class FundamentalData(Base):
     __tablename__ = "fundamental_data"
 
@@ -118,7 +119,7 @@ class FundamentalData(Base):
     period_type = Column(String(10), nullable=False)  # 'Q' or 'A'
 
     # Profit & Loss
-    revenue = Column(DECIMAL(18, 2))  # Increased precision
+    revenue = Column(DECIMAL(18, 2))
     pat = Column(DECIMAL(18, 2))  # Profit After Tax
     ebitda = Column(DECIMAL(18, 2))
     operating_profit = Column(DECIMAL(18, 2))
@@ -137,22 +138,32 @@ class FundamentalData(Base):
     free_cash_flow = Column(DECIMAL(18, 2))
 
     # Market
-    market_cap = Column(DECIMAL(18, 2))  # Increased precision to handle large market caps
-    shares_outstanding = Column(BigInteger)  # Changed from Integer to BigInteger
+    market_cap = Column(DECIMAL(18, 2))
+    shares_outstanding = Column(BigInteger)
 
-    # Metrics & Ratios
-    roce = Column(DECIMAL(15, 6))   # Return on Capital Employed - increased precision
-    roe = Column(DECIMAL(15, 6))    # Increased precision
-    roa = Column(DECIMAL(15, 6))    # Increased precision
-    eps = Column(DECIMAL(15, 4))    # Increased precision
-    pe_ratio = Column(DECIMAL(15, 6))  # Increased precision
-    pb_ratio = Column(DECIMAL(15, 6))  # Increased precision
-    debt_to_equity = Column(DECIMAL(15, 6))  # Increased precision
-    current_ratio = Column(DECIMAL(15, 6))   # Increased precision
-    quick_ratio = Column(DECIMAL(15, 6))     # Increased precision
-    gross_margin = Column(DECIMAL(15, 6))    # Increased precision
-    operating_margin = Column(DECIMAL(15, 6))  # Increased precision
-    net_margin = Column(DECIMAL(15, 6))      # Increased precision
+    # Existing Metrics & Ratios (as percentages)
+    roce = Column(DECIMAL(8, 4))           # Percentage
+    roe = Column(DECIMAL(8, 4))            # Percentage
+    roa = Column(DECIMAL(8, 4))            # Percentage
+    eps = Column(DECIMAL(15, 4))
+    pe_ratio = Column(DECIMAL(15, 6))      # ✅ Available
+    pb_ratio = Column(DECIMAL(15, 6))      # ✅ Available (P/BV)
+    debt_to_equity = Column(DECIMAL(15, 6)) # ✅ Available
+    current_ratio = Column(DECIMAL(15, 6))  # ✅ Available
+    quick_ratio = Column(DECIMAL(15, 6))
+    gross_margin = Column(DECIMAL(8, 4))    # Percentage
+    operating_margin = Column(DECIMAL(8, 4)) # Percentage
+    net_margin = Column(DECIMAL(8, 4))      # Percentage
+
+    # NEW: Growth Metrics (stored as percentages)
+    revenue_growth_yoy = Column(DECIMAL(10, 4))  # Year-over-year revenue growth %
+    profit_growth_yoy = Column(DECIMAL(10, 4))   # Year-over-year profit growth %
+    ebitda_growth_yoy = Column(DECIMAL(10, 4))   # Year-over-year EBITDA growth %
+    eps_growth_yoy = Column(DECIMAL(10, 4))      # Year-over-year EPS growth %
+    
+    # Optional: Quarter-over-quarter growth
+    revenue_growth_qoq = Column(DECIMAL(10, 4))  # Quarter-over-quarter revenue growth %
+    profit_growth_qoq = Column(DECIMAL(10, 4))   # Quarter-over-quarter profit growth %
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -166,7 +177,53 @@ class FundamentalData(Base):
         Index('idx_roce', 'roce'),
         Index('idx_pe', 'pe_ratio'),
         Index('idx_market_cap', 'market_cap'),
+        # Add indexes for growth metrics
+        Index('idx_revenue_growth_yoy', 'revenue_growth_yoy'),
+        Index('idx_profit_growth_yoy', 'profit_growth_yoy'),
+        # Constraints for growth metrics (can be negative)
+        CheckConstraint('revenue_growth_yoy >= -100', name='valid_revenue_growth'),
+        CheckConstraint('profit_growth_yoy >= -100', name='valid_profit_growth'),
     )
+
+
+# Helper function to calculate growth metrics
+def calculate_growth_metrics(current_data, previous_data):
+    """
+    Calculate YoY growth metrics
+    """
+    def calc_growth(current, previous):
+        if previous is None or previous == 0:
+            return None
+        return ((current - previous) / abs(previous)) * 100
+    
+    growth_metrics = {}
+    
+    if current_data and previous_data:
+        # Revenue Growth
+        growth_metrics['revenue_growth_yoy'] = calc_growth(
+            current_data.get('revenue'), 
+            previous_data.get('revenue')
+        )
+        
+        # Profit Growth
+        growth_metrics['profit_growth_yoy'] = calc_growth(
+            current_data.get('pat'), 
+            previous_data.get('pat')
+        )
+        
+        # EBITDA Growth
+        growth_metrics['ebitda_growth_yoy'] = calc_growth(
+            current_data.get('ebitda'), 
+            previous_data.get('ebitda')
+        )
+        
+        # EPS Growth
+        growth_metrics['eps_growth_yoy'] = calc_growth(
+            current_data.get('eps'), 
+            previous_data.get('eps')
+        )
+    
+    return growth_metrics
 
 
 # ─────────────────────────────────────────────────────────────────────────────

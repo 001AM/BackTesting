@@ -59,3 +59,16 @@ class CompanyCreate(BaseModel):
     market_cap_category : str  # e.g., Large, Mid, Small
     exchange : str
     is_active : bool
+
+class StockFilterParams(BaseModel):
+    sector: Optional[str] = None
+    min_market_cap: Optional[float] = None
+    pe_min: Optional[float] = None
+    pe_max: Optional[float] = None
+    search: Optional[str] = None
+
+class StockStatsResponse(BaseModel):
+    total_stocks: int
+    total_sectors: int
+    data_completeness: float
+    last_updated: Optional[str]

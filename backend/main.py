@@ -47,7 +47,7 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(process_time)
     return response
 
-from backend.api.v1.endpoints import populate
+from backend.api.v1.endpoints import populate, stock_data
 
 # Include routers
 app.include_router(
@@ -55,8 +55,11 @@ app.include_router(
     prefix=f"{settings.API_V1_PREFIX}/populate",
     tags=["populate"]
 )
-
-
+app.include_router(
+    stock_data.router,
+    prefix=f"{settings.API_V1_PREFIX}/stocks",
+    tags=["Stock Universe"]
+)
 # Health check endpoint
 @app.get("/health")
 async def health_check():

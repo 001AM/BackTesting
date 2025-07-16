@@ -1,8 +1,8 @@
 """inital commit
 
-Revision ID: ef83a7d48458
+Revision ID: 5df1e0b9fe58
 Revises: 
-Create Date: 2025-07-17 00:11:39.967751
+Create Date: 2025-07-17 02:43:26.890853
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'ef83a7d48458'
+revision: str = '5df1e0b9fe58'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -104,26 +104,36 @@ def upgrade() -> None:
     sa.Column('free_cash_flow', sa.DECIMAL(precision=18, scale=2), nullable=True),
     sa.Column('market_cap', sa.DECIMAL(precision=18, scale=2), nullable=True),
     sa.Column('shares_outstanding', sa.BigInteger(), nullable=True),
-    sa.Column('roce', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('roe', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('roa', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('eps', sa.DECIMAL(precision=12, scale=4), nullable=True),
-    sa.Column('pe_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('pb_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('debt_to_equity', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('current_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('quick_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('gross_margin', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('operating_margin', sa.DECIMAL(precision=10, scale=6), nullable=True),
-    sa.Column('net_margin', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('roce', sa.DECIMAL(precision=8, scale=4), nullable=True),
+    sa.Column('roe', sa.DECIMAL(precision=8, scale=4), nullable=True),
+    sa.Column('roa', sa.DECIMAL(precision=8, scale=4), nullable=True),
+    sa.Column('eps', sa.DECIMAL(precision=15, scale=4), nullable=True),
+    sa.Column('pe_ratio', sa.DECIMAL(precision=15, scale=6), nullable=True),
+    sa.Column('pb_ratio', sa.DECIMAL(precision=15, scale=6), nullable=True),
+    sa.Column('debt_to_equity', sa.DECIMAL(precision=15, scale=6), nullable=True),
+    sa.Column('current_ratio', sa.DECIMAL(precision=15, scale=6), nullable=True),
+    sa.Column('quick_ratio', sa.DECIMAL(precision=15, scale=6), nullable=True),
+    sa.Column('gross_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
+    sa.Column('operating_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
+    sa.Column('net_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
+    sa.Column('revenue_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
+    sa.Column('profit_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
+    sa.Column('ebitda_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
+    sa.Column('eps_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
+    sa.Column('revenue_growth_qoq', sa.DECIMAL(precision=10, scale=4), nullable=True),
+    sa.Column('profit_growth_qoq', sa.DECIMAL(precision=10, scale=4), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.CheckConstraint('profit_growth_yoy >= -100', name='valid_profit_growth'),
+    sa.CheckConstraint('revenue_growth_yoy >= -100', name='valid_revenue_growth'),
     sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('idx_company_report_period', 'fundamental_data', ['company_id', 'report_date', 'period_type'], unique=True)
     op.create_index('idx_market_cap', 'fundamental_data', ['market_cap'], unique=False)
     op.create_index('idx_pe', 'fundamental_data', ['pe_ratio'], unique=False)
+    op.create_index('idx_profit_growth_yoy', 'fundamental_data', ['profit_growth_yoy'], unique=False)
+    op.create_index('idx_revenue_growth_yoy', 'fundamental_data', ['revenue_growth_yoy'], unique=False)
     op.create_index('idx_roce', 'fundamental_data', ['roce'], unique=False)
     op.create_index('idx_roe', 'fundamental_data', ['roe'], unique=False)
     op.create_table('stock_prices',
@@ -153,6 +163,8 @@ def downgrade() -> None:
     op.drop_table('stock_prices')
     op.drop_index('idx_roe', table_name='fundamental_data')
     op.drop_index('idx_roce', table_name='fundamental_data')
+    op.drop_index('idx_revenue_growth_yoy', table_name='fundamental_data')
+    op.drop_index('idx_profit_growth_yoy', table_name='fundamental_data')
     op.drop_index('idx_pe', table_name='fundamental_data')
     op.drop_index('idx_market_cap', table_name='fundamental_data')
     op.drop_index('idx_company_report_period', table_name='fundamental_data')

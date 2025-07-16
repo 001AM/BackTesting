@@ -3,6 +3,7 @@ import Layout from "@/layout/Layout";
 import NotFound from "@/pages/notfound/NotFound";
 import Home from "@/pages/home/Home";
 import Data from "@/pages/data/Data"
+import BackTesting from "@/pages/backtesting/BackTesting";
 
 const routesConfig = [
   {
@@ -20,6 +21,10 @@ const routesConfig = [
       {
         path: "data",
         element: <Data/>
+      },
+      {
+        path: "backtest",
+        element: <BackTesting/>
       }
     ]
   },

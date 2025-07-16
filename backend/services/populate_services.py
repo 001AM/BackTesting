@@ -22,7 +22,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from sqlalchemy import and_, desc
 from sqlalchemy.orm import Session
 
-from backend.models.database import Company, StockPrice, FundamentalData
+from backend.models.database import Company, StockPrice, FundamentalData, DataUpdateLog
 from backend.models.schemas import CompanyCreate
 
 
@@ -570,6 +570,20 @@ class HistoricalDataCollector:
         logger.info(f"Updated prices for {success_count}/{len(companies)} companies")
         return True
 
+import yfinance as yf
+import pandas as pd
+from decimal import Decimal
+from typing import Optional, Dict, Any
+from threading import Lock
+import concurrent.futures
+import time
+from datetime import datetime
+from sqlalchemy import and_, desc
+from sqlalchemy.orm import Session
+import logging
+
+logger = logging.getLogger(__name__)
+
 class FundamentalDataCollector:
     def __init__(self, db: Session):
         self.db = db
@@ -609,6 +623,9 @@ class FundamentalDataCollector:
             # Longer pause between batches for fundamental data
             time.sleep(2)
         
+        # Calculate growth metrics after all data is collected
+        self._calculate_growth_metrics_for_all_companies()
+        
         logger.info("Fundamental data collection completed")
         return True
 
@@ -627,27 +644,22 @@ class FundamentalDataCollector:
             # Get various data
             info = stock.info
             financials = stock.financials
+            quarterly_financials = stock.quarterly_financials
             balance_sheet = stock.balance_sheet
+            quarterly_balance_sheet = stock.quarterly_balance_sheet
             cash_flow = stock.cashflow
+            quarterly_cash_flow = stock.quarterly_cashflow
             
-            # Process quarterly and annual data
+            # Process data
             success = True
             
-            # Process financials if available
+            # Process annual data
             if not financials.empty:
-                success &= self._process_financial_data(company.id, financials, 'A')
+                success &= self._process_comprehensive_data(company.id, financials, balance_sheet, cash_flow, info, 'A')
             
-            # Process balance sheet if available
-            if not balance_sheet.empty:
-                success &= self._process_balance_sheet_data(company.id, balance_sheet, 'A')
-            
-            # Process cash flow if available
-            if not cash_flow.empty:
-                success &= self._process_cash_flow_data(company.id, cash_flow, 'A')
-            
-            # Add current market data
-            if info:
-                success &= self._add_current_market_data(company.id, info)
+            # Process quarterly data
+            if not quarterly_financials.empty:
+                success &= self._process_comprehensive_data(company.id, quarterly_financials, quarterly_balance_sheet, quarterly_cash_flow, info, 'Q')
             
             return success
 
@@ -655,10 +667,15 @@ class FundamentalDataCollector:
             logger.error(f"Error collecting fundamental data for {symbol}: {e}")
             return False
 
-    def _process_financial_data(self, company_id: int, financials: pd.DataFrame, period_type: str) -> bool:
-        """Process financial statement data"""
+    def _process_comprehensive_data(self, company_id: int, financials: pd.DataFrame, 
+                                   balance_sheet: pd.DataFrame, cash_flow: pd.DataFrame, 
+                                   info: dict, period_type: str) -> bool:
+        """Process all fundamental data comprehensively"""
         try:
-            for date_col in financials.columns:
+            # Get all available dates from financials
+            dates = financials.columns if not financials.empty else []
+            
+            for date_col in dates:
                 report_date = date_col.date()
                 
                 # Check if record already exists
@@ -673,23 +690,10 @@ class FundamentalDataCollector:
                 if existing:
                     continue
                 
-                # Extract financial data
-                revenue = self._safe_get_value(financials, 'Total Revenue', date_col)
-                net_income = self._safe_get_value(financials, 'Net Income', date_col)
-                ebitda = self._safe_get_value(financials, 'EBITDA', date_col)
-                operating_income = self._safe_get_value(financials, 'Operating Income', date_col)
-                interest_expense = self._safe_get_value(financials, 'Interest Expense', date_col)
-                
-                # Create fundamental data record
-                fundamental_data = FundamentalData(
-                    company_id=company_id,
-                    report_date=report_date,
-                    period_type=period_type,
-                    revenue=revenue,
-                    pat=net_income,
-                    ebitda=ebitda,
-                    operating_profit=operating_income,
-                    interest_expense=interest_expense
+                # Create comprehensive fundamental data record
+                fundamental_data = self._create_comprehensive_fundamental_record(
+                    company_id, report_date, period_type, financials, balance_sheet, 
+                    cash_flow, info, date_col
                 )
                 
                 with self.db_lock:
@@ -699,149 +703,320 @@ class FundamentalDataCollector:
             return True
             
         except Exception as e:
-            logger.error(f"Error processing financial data: {e}")
+            logger.error(f"Error processing comprehensive data: {e}")
             return False
 
-    def _process_balance_sheet_data(self, company_id: int, balance_sheet: pd.DataFrame, period_type: str) -> bool:
-        """Process balance sheet data"""
-        try:
-            for date_col in balance_sheet.columns:
-                report_date = date_col.date()
-                
-                # Find or create the fundamental data record
-                fundamental_data = self.db.query(FundamentalData).filter(
-                    and_(
-                        FundamentalData.company_id == company_id,
-                        FundamentalData.report_date == report_date,
-                        FundamentalData.period_type == period_type
-                    )
-                ).first()
-                
-                if not fundamental_data:
-                    fundamental_data = FundamentalData(
-                        company_id=company_id,
-                        report_date=report_date,
-                        period_type=period_type
-                    )
-                
-                # Extract balance sheet data
-                fundamental_data.total_assets = self._safe_get_value(balance_sheet, 'Total Assets', date_col)
-                fundamental_data.total_liabilities = self._safe_get_value(balance_sheet, 'Total Liabilities Net Minority Interest', date_col)
-                fundamental_data.shareholders_equity = self._safe_get_value(balance_sheet, 'Total Equity Gross Minority Interest', date_col)
-                fundamental_data.cash_and_equivalents = self._safe_get_value(balance_sheet, 'Cash And Cash Equivalents', date_col)
-                fundamental_data.total_debt = self._safe_get_value(balance_sheet, 'Total Debt', date_col)
-                
-                with self.db_lock:
-                    self.db.merge(fundamental_data)
-                    self.db.commit()
+    def _create_comprehensive_fundamental_record(self, company_id: int, report_date, 
+        period_type: str, financials: pd.DataFrame,
+        balance_sheet: pd.DataFrame, cash_flow: pd.DataFrame,
+        info: dict, date_col) -> FundamentalData:
+        """Create a comprehensive fundamental data record with all fields"""
+        
+        # Extract P&L data
+        revenue = self._safe_get_df_value(financials, 'Total Revenue', date_col)
+        net_income = self._safe_get_df_value(financials, 'Net Income', date_col)
+        ebitda = self._safe_get_df_value(financials, 'EBITDA', date_col)
+        operating_income = self._safe_get_df_value(financials, 'Operating Income', date_col)
+        interest_expense = self._safe_get_df_value(financials, 'Interest Expense', date_col)
+        
+        # Extract Balance Sheet data
+        total_assets = self._safe_get_df_value(balance_sheet, 'Total Assets', date_col)
+        total_liabilities = self._safe_get_df_value(balance_sheet, 'Total Liabilities Net Minority Interest', date_col)
+        shareholders_equity = self._safe_get_df_value(balance_sheet, 'Total Equity Gross Minority Interest', date_col)
+        cash_and_equivalents = self._safe_get_df_value(balance_sheet, 'Cash And Cash Equivalents', date_col)
+        total_debt = self._safe_get_df_value(balance_sheet, 'Total Debt', date_col)
+        
+        # Extract Cash Flow data
+        operating_cash_flow = self._safe_get_df_value(cash_flow, 'Operating Cash Flow', date_col)
+        capex = self._safe_get_df_value(cash_flow, 'Capital Expenditure', date_col)
+        
+        # Calculate derived metrics
+        free_cash_flow = None
+        if operating_cash_flow and capex:
+            free_cash_flow = operating_cash_flow + capex  # capex is usually negative
+        
+        # Get market data (use current values for all periods)
+        market_cap = self._safe_get_info_value(info, 'marketCap')
+        shares_outstanding = self._safe_get_info_value(info, 'sharesOutstanding')
+        
+        # Calculate financial ratios
+        ratios = self._calculate_financial_ratios(
+            revenue, net_income, ebitda, operating_income, total_assets,
+            total_liabilities, shareholders_equity, total_debt, market_cap,
+            shares_outstanding, info
+        )
+        
+        # Create the record
+        fundamental_data = FundamentalData(
+            company_id=company_id,
+            report_date=report_date,
+            period_type=period_type,
             
-            return True
+            # P&L Data
+            revenue=revenue,
+            pat=net_income,
+            ebitda=ebitda,
+            operating_profit=operating_income,
+            interest_expense=interest_expense,
+            
+            # Balance Sheet Data
+            total_assets=total_assets,
+            total_liabilities=total_liabilities,
+            shareholders_equity=shareholders_equity,
+            cash_and_equivalents=cash_and_equivalents,
+            total_debt=total_debt,
+            
+            # Cash Flow Data
+            operating_cash_flow=operating_cash_flow,
+            capex=capex,
+            free_cash_flow=free_cash_flow,
+            
+            # Market Data
+            market_cap=market_cap,
+            shares_outstanding=shares_outstanding,
+            
+            # Calculated Ratios (stored as percentages where applicable)
+            roce=ratios.get('roce'),
+            roe=ratios.get('roe'),
+            roa=ratios.get('roa'),
+            eps=ratios.get('eps'),
+            pe_ratio=ratios.get('pe_ratio'),
+            pb_ratio=ratios.get('pb_ratio'),
+            debt_to_equity=ratios.get('debt_to_equity'),
+            current_ratio=ratios.get('current_ratio'),
+            quick_ratio=ratios.get('quick_ratio'),
+            gross_margin=ratios.get('gross_margin'),
+            operating_margin=ratios.get('operating_margin'),
+            net_margin=ratios.get('net_margin'),
+            
+            # Growth metrics will be calculated separately
+            revenue_growth_yoy=None,
+            profit_growth_yoy=None,
+            ebitda_growth_yoy=None,
+            eps_growth_yoy=None
+        )
+        
+        return fundamental_data
+
+    def _calculate_financial_ratios(self, revenue, net_income, ebitda, operating_income,
+                                   total_assets, total_liabilities, shareholders_equity,
+                                   total_debt, market_cap, shares_outstanding, info: dict) -> Dict[str, Any]:
+        """Calculate all financial ratios"""
+        ratios = {}
+        
+        try:
+            # ROE (Return on Equity) - as percentage
+            if net_income and shareholders_equity and shareholders_equity > 0:
+                ratios['roe'] = (float(net_income) / float(shareholders_equity)) * 100
+            else:
+                ratios['roe'] = self._safe_get_info_value(info, 'returnOnEquity', as_percentage=True)
+            
+            # ROA (Return on Assets) - as percentage
+            if net_income and total_assets and total_assets > 0:
+                ratios['roa'] = (float(net_income) / float(total_assets)) * 100
+            else:
+                ratios['roa'] = self._safe_get_info_value(info, 'returnOnAssets', as_percentage=True)
+            
+            # ROCE (Return on Capital Employed) - as percentage
+            if operating_income and total_assets and total_liabilities:
+                capital_employed = float(total_assets) - float(total_liabilities)
+                if capital_employed > 0:
+                    ratios['roce'] = (float(operating_income) / capital_employed) * 100
+            
+            # EPS (Earnings Per Share)
+            if net_income and shares_outstanding and shares_outstanding > 0:
+                ratios['eps'] = float(net_income) / float(shares_outstanding)
+            else:
+                ratios['eps'] = self._safe_get_info_value(info, 'trailingEps')
+            
+            # P/E Ratio
+            ratios['pe_ratio'] = self._safe_get_info_value(info, 'trailingPE')
+            
+            # P/B Ratio
+            ratios['pb_ratio'] = self._safe_get_info_value(info, 'priceToBook')
+            
+            # Debt to Equity
+            if total_debt and shareholders_equity and shareholders_equity > 0:
+                ratios['debt_to_equity'] = float(total_debt) / float(shareholders_equity)
+            else:
+                ratios['debt_to_equity'] = self._safe_get_info_value(info, 'debtToEquity')
+            
+            # Current Ratio
+            ratios['current_ratio'] = self._safe_get_info_value(info, 'currentRatio')
+            
+            # Quick Ratio
+            ratios['quick_ratio'] = self._safe_get_info_value(info, 'quickRatio')
+            
+            # Margin ratios - as percentages
+            if revenue and revenue > 0:
+                # Gross Margin
+                gross_profit = self._safe_get_info_value(info, 'grossProfit')
+                if gross_profit:
+                    ratios['gross_margin'] = (float(gross_profit) / float(revenue)) * 100
+                else:
+                    ratios['gross_margin'] = self._safe_get_info_value(info, 'grossMargins', as_percentage=True)
+                
+                # Operating Margin
+                if operating_income:
+                    ratios['operating_margin'] = (float(operating_income) / float(revenue)) * 100
+                else:
+                    ratios['operating_margin'] = self._safe_get_info_value(info, 'operatingMargins', as_percentage=True)
+                
+                # Net Margin
+                if net_income:
+                    ratios['net_margin'] = (float(net_income) / float(revenue)) * 100
+                else:
+                    ratios['net_margin'] = self._safe_get_info_value(info, 'profitMargins', as_percentage=True)
             
         except Exception as e:
-            logger.error(f"Error processing balance sheet data: {e}")
-            return False
+            logger.error(f"Error calculating ratios: {e}")
+        
+        return ratios
 
-    def _process_cash_flow_data(self, company_id: int, cash_flow: pd.DataFrame, period_type: str) -> bool:
-        """Process cash flow data"""
+    def _calculate_growth_metrics_for_all_companies(self):
+        """Calculate growth metrics for all companies after data collection"""
+        logger.info("Calculating growth metrics for all companies...")
+        
+        companies = self.db.query(Company).filter(Company.is_active == True).all()
+        
+        for company in companies:
+            try:
+                self._calculate_company_growth_metrics(company.id)
+            except Exception as e:
+                logger.error(f"Error calculating growth metrics for {company.symbol}: {e}")
+        
+        logger.info("Growth metrics calculation completed")
+
+    def _calculate_company_growth_metrics(self, company_id: int):
+        """Calculate growth metrics for a specific company"""
+        # Get annual data ordered by date
+        annual_data = self.db.query(FundamentalData).filter(
+            and_(
+                FundamentalData.company_id == company_id,
+                FundamentalData.period_type == 'A'
+            )
+        ).order_by(FundamentalData.report_date).all()
+        
+        # Calculate YoY growth for each record (comparing with previous year)
+        for i in range(1, len(annual_data)):
+            current = annual_data[i]
+            previous = annual_data[i-1]
+            
+            # Revenue Growth YoY
+            current.revenue_growth_yoy = self._calculate_growth_rate(
+                current.revenue, previous.revenue
+            )
+            
+            # Profit Growth YoY
+            current.profit_growth_yoy = self._calculate_growth_rate(
+                current.pat, previous.pat
+            )
+            
+            # EBITDA Growth YoY
+            current.ebitda_growth_yoy = self._calculate_growth_rate(
+                current.ebitda, previous.ebitda
+            )
+            
+            # EPS Growth YoY
+            current.eps_growth_yoy = self._calculate_growth_rate(
+                current.eps, previous.eps
+            )
+        
+        # Also calculate for quarterly data
+        quarterly_data = self.db.query(FundamentalData).filter(
+            and_(
+                FundamentalData.company_id == company_id,
+                FundamentalData.period_type == 'Q'
+            )
+        ).order_by(FundamentalData.report_date).all()
+        
+        # For quarterly data, compare with same quarter previous year (4 quarters back)
+        for i in range(4, len(quarterly_data)):
+            current = quarterly_data[i]
+            previous_year_same_quarter = quarterly_data[i-4]
+            
+            current.revenue_growth_yoy = self._calculate_growth_rate(
+                current.revenue, previous_year_same_quarter.revenue
+            )
+            
+            current.profit_growth_yoy = self._calculate_growth_rate(
+                current.pat, previous_year_same_quarter.pat
+            )
+            
+            current.ebitda_growth_yoy = self._calculate_growth_rate(
+                current.ebitda, previous_year_same_quarter.ebitda
+            )
+            
+            current.eps_growth_yoy = self._calculate_growth_rate(
+                current.eps, previous_year_same_quarter.eps
+            )
+        
+        self.db.commit()
+
+    def _calculate_growth_rate(self, current_value, previous_value) -> Optional[Decimal]:
+        """Calculate growth rate as percentage"""
         try:
-            for date_col in cash_flow.columns:
-                report_date = date_col.date()
-                
-                # Find or create the fundamental data record
-                fundamental_data = self.db.query(FundamentalData).filter(
-                    and_(
-                        FundamentalData.company_id == company_id,
-                        FundamentalData.report_date == report_date,
-                        FundamentalData.period_type == period_type
-                    )
-                ).first()
-                
-                if not fundamental_data:
-                    fundamental_data = FundamentalData(
-                        company_id=company_id,
-                        report_date=report_date,
-                        period_type=period_type
-                    )
-                
-                # Extract cash flow data
-                fundamental_data.operating_cash_flow = self._safe_get_value(cash_flow, 'Operating Cash Flow', date_col)
-                fundamental_data.capex = self._safe_get_value(cash_flow, 'Capital Expenditure', date_col)
-                
-                # Calculate free cash flow
-                if fundamental_data.operating_cash_flow and fundamental_data.capex:
-                    fundamental_data.free_cash_flow = fundamental_data.operating_cash_flow + fundamental_data.capex
-                
-                with self.db_lock:
-                    self.db.merge(fundamental_data)
-                    self.db.commit()
+            if current_value is None or previous_value is None:
+                return None
             
-            return True
+            current_val = float(current_value)
+            previous_val = float(previous_value)
             
-        except Exception as e:
-            logger.error(f"Error processing cash flow data: {e}")
-            return False
+            if previous_val == 0:
+                return None
+            
+            growth_rate = ((current_val - previous_val) / abs(previous_val)) * 100
+            return Decimal(str(growth_rate))
+            
+        except (ValueError, TypeError, ZeroDivisionError):
+            return None
 
-    def _add_current_market_data(self, company_id: int, info: dict) -> bool:
-        """Add current market data and ratios"""
-        try:
-            # Get the most recent fundamental data record
-            latest_fundamental = self.db.query(FundamentalData).filter(
-                FundamentalData.company_id == company_id
-            ).order_by(desc(FundamentalData.report_date)).first()
-            
-            if not latest_fundamental:
-                # Create a new record with current date
-                latest_fundamental = FundamentalData(
-                    company_id=company_id,
-                    report_date=datetime.now().date(),
-                    period_type='C'  # Current
-                )
-            
-            # Update with current market data
-            latest_fundamental.market_cap = self._safe_get_info_value(info, 'marketCap')
-            latest_fundamental.shares_outstanding = self._safe_get_info_value(info, 'sharesOutstanding')
-            latest_fundamental.pe_ratio = self._safe_get_info_value(info, 'trailingPE')
-            latest_fundamental.pb_ratio = self._safe_get_info_value(info, 'priceToBook')
-            latest_fundamental.eps = self._safe_get_info_value(info, 'trailingEps')
-            latest_fundamental.roe = self._safe_get_info_value(info, 'returnOnEquity')
-            latest_fundamental.roa = self._safe_get_info_value(info, 'returnOnAssets')
-            latest_fundamental.debt_to_equity = self._safe_get_info_value(info, 'debtToEquity')
-            latest_fundamental.current_ratio = self._safe_get_info_value(info, 'currentRatio')
-            latest_fundamental.quick_ratio = self._safe_get_info_value(info, 'quickRatio')
-            latest_fundamental.gross_margin = self._safe_get_info_value(info, 'grossMargins')
-            latest_fundamental.operating_margin = self._safe_get_info_value(info, 'operatingMargins')
-            latest_fundamental.net_margin = self._safe_get_info_value(info, 'profitMargins')
-            
-            with self.db_lock:
-                self.db.merge(latest_fundamental)
-                self.db.commit()
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error adding current market data: {e}")
-            return False
-
-    def _safe_get_value(self, df: pd.DataFrame, key: str, date_col) -> Optional[Decimal]:
+    def _safe_get_df_value(self, df: pd.DataFrame, key: str, date_col) -> Optional[Decimal]:
         """Safely get value from DataFrame"""
         try:
-            if key in df.index:
-                value = df.loc[key, date_col]
-                if pd.notna(value) and value != 0:
-                    return Decimal(str(float(value)))
+            if df.empty or key not in df.index:
+                return None
+            
+            value = df.loc[key, date_col]
+            if pd.notna(value) and value != 0:
+                return Decimal(str(float(value)))
         except (KeyError, ValueError, TypeError):
             pass
         return None
 
-    def _safe_get_info_value(self, info: dict, key: str) -> Optional[Decimal]:
+    def _safe_get_info_value(self, info: dict, key: str, as_percentage: bool = False) -> Optional[Decimal]:
         """Safely get value from info dictionary"""
         try:
             value = info.get(key)
             if value is not None and value != 0:
-                return Decimal(str(float(value)))
+                float_value = float(value)
+                if as_percentage:
+                    # Convert decimal to percentage (e.g., 0.15 -> 15.0)
+                    float_value = float_value * 100
+                return Decimal(str(float_value))
         except (ValueError, TypeError):
             pass
         return None
+
+    def update_data_log(self, company_id: int, data_type: str, status: str, 
+                       records_updated: int = 0, error_message: str = None):
+        """Update data collection log"""
+        try:
+            log_entry = DataUpdateLog(
+                company_id=company_id,
+                data_type=data_type,
+                last_update_date=datetime.now().date(),
+                status=status,
+                records_updated=records_updated,
+                error_message=error_message
+            )
+            
+            with self.db_lock:
+                self.db.add(log_entry)
+                self.db.commit()
+                
+        except Exception as e:
+            logger.error(f"Error updating data log: {e}")
 
 class BacktestingDataManager:
     def __init__(self, db: Session):
