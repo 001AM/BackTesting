@@ -94,7 +94,7 @@ class StockPrice(Base):
     low = Column(DECIMAL(12, 4))
     close = Column(DECIMAL(12, 4))
     adjusted_close = Column(DECIMAL(12, 4))
-    volume = Column(Integer)
+    volume = Column(BigInteger)  # Changed from Integer to BigInteger
     created_at = Column(DateTime, default=func.now())
 
     # Relationship
@@ -118,41 +118,41 @@ class FundamentalData(Base):
     period_type = Column(String(10), nullable=False)  # 'Q' or 'A'
 
     # Profit & Loss
-    revenue = Column(DECIMAL(15, 2))
-    pat = Column(DECIMAL(15, 2))  # Profit After Tax
-    ebitda = Column(DECIMAL(15, 2))
-    operating_profit = Column(DECIMAL(15, 2))
-    interest_expense = Column(DECIMAL(15, 2))
+    revenue = Column(DECIMAL(18, 2))  # Increased precision
+    pat = Column(DECIMAL(18, 2))  # Profit After Tax
+    ebitda = Column(DECIMAL(18, 2))
+    operating_profit = Column(DECIMAL(18, 2))
+    interest_expense = Column(DECIMAL(18, 2))
 
     # Balance Sheet
-    total_assets = Column(DECIMAL(15, 2))
-    total_liabilities = Column(DECIMAL(15, 2))
-    shareholders_equity = Column(DECIMAL(15, 2))
-    cash_and_equivalents = Column(DECIMAL(15, 2))
-    total_debt = Column(DECIMAL(15, 2))
+    total_assets = Column(DECIMAL(18, 2))
+    total_liabilities = Column(DECIMAL(18, 2))
+    shareholders_equity = Column(DECIMAL(18, 2))
+    cash_and_equivalents = Column(DECIMAL(18, 2))
+    total_debt = Column(DECIMAL(18, 2))
 
     # Cash Flow
-    operating_cash_flow = Column(DECIMAL(15, 2))
-    capex = Column(DECIMAL(15, 2))
-    free_cash_flow = Column(DECIMAL(15, 2))
+    operating_cash_flow = Column(DECIMAL(18, 2))
+    capex = Column(DECIMAL(18, 2))
+    free_cash_flow = Column(DECIMAL(18, 2))
 
     # Market
-    market_cap = Column(DECIMAL(15, 2))
-    shares_outstanding = Column(Integer)
+    market_cap = Column(DECIMAL(18, 2))  # Increased precision to handle large market caps
+    shares_outstanding = Column(BigInteger)  # Changed from Integer to BigInteger
 
     # Metrics & Ratios
-    roce = Column(DECIMAL(8, 4))   # Return on Capital Employed
-    roe = Column(DECIMAL(8, 4))
-    roa = Column(DECIMAL(8, 4))
-    eps = Column(DECIMAL(8, 4))
-    pe_ratio = Column(DECIMAL(8, 4))
-    pb_ratio = Column(DECIMAL(8, 4))
-    debt_to_equity = Column(DECIMAL(8, 4))
-    current_ratio = Column(DECIMAL(8, 4))
-    quick_ratio = Column(DECIMAL(8, 4))
-    gross_margin = Column(DECIMAL(8, 4))
-    operating_margin = Column(DECIMAL(8, 4))
-    net_margin = Column(DECIMAL(8, 4))
+    roce = Column(DECIMAL(15, 6))   # Return on Capital Employed - increased precision
+    roe = Column(DECIMAL(15, 6))    # Increased precision
+    roa = Column(DECIMAL(15, 6))    # Increased precision
+    eps = Column(DECIMAL(15, 4))    # Increased precision
+    pe_ratio = Column(DECIMAL(15, 6))  # Increased precision
+    pb_ratio = Column(DECIMAL(15, 6))  # Increased precision
+    debt_to_equity = Column(DECIMAL(15, 6))  # Increased precision
+    current_ratio = Column(DECIMAL(15, 6))   # Increased precision
+    quick_ratio = Column(DECIMAL(15, 6))     # Increased precision
+    gross_margin = Column(DECIMAL(15, 6))    # Increased precision
+    operating_margin = Column(DECIMAL(15, 6))  # Increased precision
+    net_margin = Column(DECIMAL(15, 6))      # Increased precision
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

@@ -1,8 +1,8 @@
 """inital commit
 
-Revision ID: d622de2d7c12
+Revision ID: ef83a7d48458
 Revises: 
-Create Date: 2025-07-16 01:30:31.987187
+Create Date: 2025-07-17 00:11:39.967751
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd622de2d7c12'
+revision: str = 'ef83a7d48458'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -89,33 +89,33 @@ def upgrade() -> None:
     sa.Column('company_id', sa.Integer(), nullable=False),
     sa.Column('report_date', sa.Date(), nullable=False),
     sa.Column('period_type', sa.String(length=10), nullable=False),
-    sa.Column('revenue', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('pat', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('ebitda', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('operating_profit', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('interest_expense', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('total_assets', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('total_liabilities', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('shareholders_equity', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('cash_and_equivalents', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('total_debt', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('operating_cash_flow', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('capex', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('free_cash_flow', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('market_cap', sa.DECIMAL(precision=15, scale=2), nullable=True),
-    sa.Column('shares_outstanding', sa.Integer(), nullable=True),
-    sa.Column('roce', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('roe', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('roa', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('eps', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('pe_ratio', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('pb_ratio', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('debt_to_equity', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('current_ratio', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('quick_ratio', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('gross_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('operating_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('net_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
+    sa.Column('revenue', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('pat', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('ebitda', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('operating_profit', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('interest_expense', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('total_assets', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('total_liabilities', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('shareholders_equity', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('cash_and_equivalents', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('total_debt', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('operating_cash_flow', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('capex', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('free_cash_flow', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('market_cap', sa.DECIMAL(precision=18, scale=2), nullable=True),
+    sa.Column('shares_outstanding', sa.BigInteger(), nullable=True),
+    sa.Column('roce', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('roe', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('roa', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('eps', sa.DECIMAL(precision=12, scale=4), nullable=True),
+    sa.Column('pe_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('pb_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('debt_to_equity', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('current_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('quick_ratio', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('gross_margin', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('operating_margin', sa.DECIMAL(precision=10, scale=6), nullable=True),
+    sa.Column('net_margin', sa.DECIMAL(precision=10, scale=6), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
@@ -135,7 +135,7 @@ def upgrade() -> None:
     sa.Column('low', sa.DECIMAL(precision=12, scale=4), nullable=True),
     sa.Column('close', sa.DECIMAL(precision=12, scale=4), nullable=True),
     sa.Column('adjusted_close', sa.DECIMAL(precision=12, scale=4), nullable=True),
-    sa.Column('volume', sa.Integer(), nullable=True),
+    sa.Column('volume', sa.BigInteger(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
     sa.PrimaryKeyConstraint('id')

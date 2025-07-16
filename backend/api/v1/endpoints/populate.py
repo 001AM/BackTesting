@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import logging
 
-from backend.core.dependencies import get_db
+from backend.db.session import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,15 +17,15 @@ def populate_companies(db: Session = Depends(get_db)):
     Populate companies from Nifty 200 list.
     This endpoint runs the population process in the background.
     """
-    from backend.services.populate_services import CompanyPopulate
+    from backend.services.populate_services import BacktestingDataManager
     
     try:
-        cp = CompanyPopulate(db)
+        cp = BacktestingDataManager(db)
 
         def run_population():
             try:
                 logger.info("Starting company population process...")
-                success = cp.get_companies()
+                success = cp.setup_backtesting_data()
                 if success:
                     logger.info("✅ Company population completed successfully")
                 else:
