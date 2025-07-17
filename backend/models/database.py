@@ -78,7 +78,6 @@ class Company(Base):
         Index('idx_market_cap_category', 'market_cap_category'),
     )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Stock Price Table
 # ─────────────────────────────────────────────────────────────────────────────
@@ -94,7 +93,7 @@ class StockPrice(Base):
     low = Column(DECIMAL(12, 4))
     close = Column(DECIMAL(12, 4))
     adjusted_close = Column(DECIMAL(12, 4))
-    volume = Column(BigInteger)  # Changed from Integer to BigInteger
+    volume = Column(BigInteger)
     created_at = Column(DateTime, default=func.now())
 
     # Relationship
@@ -109,7 +108,9 @@ class StockPrice(Base):
 # ─────────────────────────────────────────────────────────────────────────────
 # Fundamental Data Table
 # ─────────────────────────────────────────────────────────────────────────────
+
 # Enhanced FundamentalData class with growth metrics
+
 class FundamentalData(Base):
     __tablename__ = "fundamental_data"
 

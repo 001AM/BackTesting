@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator,ValidationInfo, UUID4
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 # Auth Schemas
@@ -72,3 +72,26 @@ class StockStatsResponse(BaseModel):
     total_sectors: int
     data_completeness: float
     last_updated: Optional[str]
+
+class BacktestRequest(BaseModel):
+    start_date: date = Field(..., description="Backtest start date")
+    end_date: date = Field(..., description="Backtest end date")
+    portfolio_size: int = Field(20, ge=1, le=100, description="Number of stocks")
+    rebalancing_frequency: str = Field("quarterly", description="quarterly, monthly, yearly")
+    weighting_method: str = Field("equal", description="equal, market_cap, metric_weighted")
+    
+    # Filtering criteria
+    min_market_cap: Optional[float] = Field(None, description="Minimum market cap (Cr)")
+    max_market_cap: Optional[float] = Field(None, description="Maximum market cap (Cr)")
+    min_roce: Optional[float] = Field(15, description="Minimum ROCE (%)")
+    pat_positive: bool = Field(True, description="PAT > 0 filter")
+    
+    # Ranking criteria
+    ranking_metrics: List[Dict[str, bool]] = Field(
+        default_factory=lambda: [{"roe": True}],
+        description="Metrics for ranking"
+    )
+    metric_weights: Optional[Dict[str, float]] = Field(None, description="Weights for metrics")
+    
+    # Benchmark
+    benchmark_symbol: str = Field("NIFTY50", description="Benchmark index symbol")

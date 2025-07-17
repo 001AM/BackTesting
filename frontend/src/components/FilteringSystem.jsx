@@ -79,7 +79,7 @@ export function FilteringSystem() {
       <Card>
         <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
           <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-3">
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
               <CardTitle className="flex items-center justify-between text-sm">
                 Additional Filters
                 <ChevronDown
@@ -97,7 +97,7 @@ export function FilteringSystem() {
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">P/E Ratio</Label>
                   <Select value={peRatio} onValueChange={setPeRatio}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select range" />
                     </SelectTrigger>
                     <SelectContent>
@@ -113,7 +113,7 @@ export function FilteringSystem() {
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Debt-to-Equity</Label>
                   <Select value={debtEquity} onValueChange={setDebtEquity}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select range" />
                     </SelectTrigger>
                     <SelectContent>

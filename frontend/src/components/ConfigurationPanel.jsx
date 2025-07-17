@@ -39,7 +39,7 @@ export function ConfigurationPanel() {
             
           >
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardHeader className="cursor-pointer hover:bg-muted transition-colors">
                 <CardTitle className="flex items-center justify-between text-sm">
                   {title}
                   {openSections[key] ? (
@@ -51,7 +51,7 @@ export function ConfigurationPanel() {
               </CardHeader>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <CardContent>
+              <CardContent className="m-2">
                 <Component />
               </CardContent>
             </CollapsibleContent>

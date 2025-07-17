@@ -78,7 +78,7 @@ export function BasicConfig() {
       <div className="space-y-2">
         <Label className="text-sm font-medium">Rebalancing Frequency</Label>
         <Select value={rebalanceFreq} onValueChange={setRebalanceFreq}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

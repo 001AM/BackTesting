@@ -23,7 +23,7 @@ export default function BacktestingPlatform() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6">
         {/* Top Controls */}
-        <div className="flex justify-end mb-6 space-x-2">
+        {/* <div className="flex justify-end mb-6 space-x-2">
           <Button variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -32,7 +32,7 @@ export default function BacktestingPlatform() {
             <Play className="w-4 h-4 mr-2" />
             {isRunning ? "Running..." : "Run Backtest"}
           </Button>
-        </div>
+        </div> */}
 
         <div className="px-3 grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Configuration Panel */}
@@ -48,7 +48,7 @@ export default function BacktestingPlatform() {
               <Card className="p-8 text-center">
                 <div className="space-y-4">
                   <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                    <Play className="w-8 h-8 text-muted-foreground" />
+                    <Play onClick={handleRunBacktest} className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <h3 className="text-lg font-semibold">Ready to Backtest</h3>
                   <p className="text-muted-foreground">

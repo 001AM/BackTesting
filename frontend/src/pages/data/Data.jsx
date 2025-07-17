@@ -105,7 +105,7 @@ export default function DataPage() {
           </TabsList>
 
           <TabsContent value="stocks">
-            <Card>
+            <Card className="gap-6">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
