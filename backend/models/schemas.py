@@ -73,12 +73,16 @@ class StockStatsResponse(BaseModel):
     data_completeness: float
     last_updated: Optional[str]
 
+class SymbolListRequest(BaseModel):
+    symbol_list : List
+
 class BacktestRequest(BaseModel):
     start_date: date = Field(..., description="Backtest start date")
     end_date: date = Field(..., description="Backtest end date")
     portfolio_size: int = Field(20, ge=1, le=100, description="Number of stocks")
     rebalancing_frequency: str = Field("quarterly", description="quarterly, monthly, yearly")
     weighting_method: str = Field("equal", description="equal, market_cap, metric_weighted")
+    initial_capital :int
     
     # Filtering criteria
     min_market_cap: Optional[float] = Field(None, description="Minimum market cap (Cr)")
@@ -91,7 +95,7 @@ class BacktestRequest(BaseModel):
         default_factory=lambda: [{"roe": True}],
         description="Metrics for ranking"
     )
-    metric_weights: Optional[Dict[str, float]] = Field(None, description="Weights for metrics")
+    # metric_weights: Optional[Dict[str, float]] = Field(None, description="Weights for metrics")
     
     # Benchmark
     benchmark_symbol: str = Field("NIFTY50", description="Benchmark index symbol")

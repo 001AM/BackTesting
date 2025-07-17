@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 executor = ThreadPoolExecutor(max_workers=2)
-
+from backend.models.schemas import SymbolListRequest
 @router.post("/populate/companies/")
-def populate_companies(db: Session = Depends(get_db)):
+def populate_companies(request:SymbolListRequest,db: Session = Depends(get_db)):
     """
     Populate companies from Nifty 200 list.
     This endpoint runs the population process in the background.
@@ -25,7 +25,7 @@ def populate_companies(db: Session = Depends(get_db)):
         def run_population():
             try:
                 logger.info("Starting company population process...")
-                success = cp.setup_backtesting_data()
+                success = cp.fast_setup_backtesting_data(request.symbol_list)
                 if success:
                     logger.info("✅ Company population completed successfully")
                 else:

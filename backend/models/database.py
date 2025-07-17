@@ -187,46 +187,6 @@ class FundamentalData(Base):
     )
 
 
-# Helper function to calculate growth metrics
-def calculate_growth_metrics(current_data, previous_data):
-    """
-    Calculate YoY growth metrics
-    """
-    def calc_growth(current, previous):
-        if previous is None or previous == 0:
-            return None
-        return ((current - previous) / abs(previous)) * 100
-    
-    growth_metrics = {}
-    
-    if current_data and previous_data:
-        # Revenue Growth
-        growth_metrics['revenue_growth_yoy'] = calc_growth(
-            current_data.get('revenue'), 
-            previous_data.get('revenue')
-        )
-        
-        # Profit Growth
-        growth_metrics['profit_growth_yoy'] = calc_growth(
-            current_data.get('pat'), 
-            previous_data.get('pat')
-        )
-        
-        # EBITDA Growth
-        growth_metrics['ebitda_growth_yoy'] = calc_growth(
-            current_data.get('ebitda'), 
-            previous_data.get('ebitda')
-        )
-        
-        # EPS Growth
-        growth_metrics['eps_growth_yoy'] = calc_growth(
-            current_data.get('eps'), 
-            previous_data.get('eps')
-        )
-    
-    return growth_metrics
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Data Update Logs
 # ─────────────────────────────────────────────────────────────────────────────
