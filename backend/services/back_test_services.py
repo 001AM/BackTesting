@@ -22,14 +22,14 @@ class BackTestServices:
         self.price_cache = {}
         self.metrics_calculator = PerformanceMetrics()
         self.initialize_portfolio()
-        getcontext().prec = 16
+        getcontext().prec = 28  # Increased precision for better decimal handling
         
     def initialize_portfolio(self):
         """Initialize or reset the portfolio"""
         self.portfolio = {
             "holdings": {},       # {company_id: {'quantity': qty, 'avg_price': price, 'symbol' symbol, 'company_name' : name}}
-            "cash_balance": 0,    # Available cash
-            "total_value": 0,     # Total portfolio value (cash + investments)
+            "cash_balance": 0.0,  # Available cash
+            "total_value": 0.0,   # Total portfolio value (cash + investments)
             "transaction_history": []
         }
         self.portfolio_history = []
@@ -115,18 +115,22 @@ class BackTestServices:
 
     def get_portfolio_value(self, as_of_date: date) -> float:
         """Calculate current portfolio value"""
-        cash = Decimal(str(self.portfolio['cash_balance']))
-        holdings_value = Decimal('0')
-        
-        for company_id, holding in self.portfolio['holdings'].items():
-            price = self.get_current_price(company_id, as_of_date)
-            if price > 0:
-                holdings_value += Decimal(str(holding['quantity'])) * Decimal(str(price))
-            else:
-                logger.warning(f"Zero price for company {company_id} on {as_of_date}, excluding from portfolio value")
-        
-        total_value = cash + holdings_value
-        return float(total_value.quantize(Decimal('0.01'), ROUND_HALF_UP))
+        try:
+            cash = Decimal(str(self.portfolio['cash_balance']))
+            holdings_value = Decimal('0')
+            
+            for company_id, holding in self.portfolio['holdings'].items():
+                price = self.get_current_price(company_id, as_of_date)
+                if price > 0:
+                    holdings_value += Decimal(str(holding['quantity'])) * Decimal(str(price))
+                else:
+                    logger.warning(f"Zero price for company {company_id} on {as_of_date}, excluding from portfolio value")
+            
+            total_value = cash + holdings_value
+            return float(total_value.quantize(Decimal('0.01'), ROUND_HALF_UP))
+        except (ValueError, InvalidOperation) as e:
+            logger.error(f"Error calculating portfolio value: {e}")
+            return 0.0
 
     def query_for_rebalance(self, backtestfilters: BacktestRequest, rebalance_date: date) -> List[Company]:
         """Query for companies that meet the criteria at a specific rebalance date"""
@@ -265,7 +269,7 @@ class BackTestServices:
                             market_cap = Decimal(str(c[1].market_cap))
                             if market_cap > Decimal('0'):
                                 valid.append((c[0].id, market_cap))
-                    except:
+                    except (ValueError, InvalidOperation):
                         continue
                         
                 if not valid:
@@ -283,7 +287,7 @@ class BackTestServices:
                             score = Decimal(roce_str)
                             if score > Decimal('0'):
                                 valid.append((c[0].id, score))
-                    except:
+                    except (ValueError, InvalidOperation):
                         continue
                         
                 if not valid:
@@ -313,7 +317,7 @@ class BackTestServices:
         """Execute portfolio rebalancing with proper validation and tracking"""
         try:
             # Initialize decimal context for this operation
-            getcontext().prec = 16
+            getcontext().prec = 28
             getcontext().rounding = ROUND_HALF_UP
 
             # Validate that we have price data for all companies
@@ -429,101 +433,109 @@ class BackTestServices:
 
     def execute_buy(self, company_id: int, quantity: int, price: float, date: date):
         """Execute buy with proper validation and tracking"""
-        if price <= 0:
-            logger.error(f"Cannot execute buy for company {company_id}: invalid price {price}")
-            return
+        try:
+            if price <= 0:
+                logger.error(f"Cannot execute buy for company {company_id}: invalid price {price}")
+                return
+                
+            cost = Decimal(str(quantity)) * Decimal(str(price))
+            cost = cost.quantize(Decimal('0.01'), ROUND_HALF_UP)
+            cash_balance = Decimal(str(self.portfolio['cash_balance']))
             
-        cost = Decimal(str(quantity * price)).quantize(Decimal('0.01'), ROUND_HALF_UP)
-        cash_balance = Decimal(str(self.portfolio['cash_balance']))
-        
-        if cost > cash_balance:
-            logger.warning(f"Insufficient cash for buy order: need {cost}, have {cash_balance}")
-            return
-        
-        # Update cash and holdings
-        self.portfolio['cash_balance'] = float(cash_balance - cost)
-        company = self.get_company_info(company_id)
-        
-        if company_id in self.portfolio['holdings']:
-            holding = self.portfolio['holdings'][company_id]
-            new_quantity = holding['quantity'] + quantity
-            total_cost = (Decimal(str(holding['quantity'])) * Decimal(str(holding['avg_price']))) + cost
-            new_avg_price = (total_cost / Decimal(str(new_quantity))).quantize(Decimal('0.01'), ROUND_HALF_UP)
+            if cost > cash_balance:
+                logger.warning(f"Insufficient cash for buy order: need {cost}, have {cash_balance}")
+                return
             
-            holding.update({
-                'symbol' : company.symbol,
-                'company_name' : company.name,
-                'quantity': new_quantity,
-                'avg_price': float(new_avg_price)
-            })
-        else:
-            self.portfolio['holdings'][company_id] = {
-                'symbol' : company.symbol,
-                'company_name' : company.name,
-                'quantity': quantity,
-                'avg_price': price
-            }
-        
-        # Record transaction
-        if company:
-            self.portfolio['transaction_history'].append({
-                "date": date,
-                "symbol": company.symbol,
-                "company_id": company_id,
-                "company_name": company.name,
-                "action": "BUY",
-                "quantity": quantity,
-                "price": price,
-                "total_value": float(cost),
-                "portfolio_value": self.get_portfolio_value(date),
-                "cash_balance": self.portfolio['cash_balance']
-            })
-            logger.info(f"BUY: {quantity} shares of {company.symbol} at {price} on {date}")
+            # Update cash and holdings
+            self.portfolio['cash_balance'] = float(cash_balance - cost)
+            company = self.get_company_info(company_id)
+            
+            if company_id in self.portfolio['holdings']:
+                holding = self.portfolio['holdings'][company_id]
+                new_quantity = holding['quantity'] + quantity
+                total_cost = (Decimal(str(holding['quantity'])) * Decimal(str(holding['avg_price']))) + cost
+                new_avg_price = (total_cost / Decimal(str(new_quantity))).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                
+                holding.update({
+                    'symbol': company.symbol,
+                    'company_name': company.name,
+                    'quantity': new_quantity,
+                    'avg_price': float(new_avg_price)
+                })
+            else:
+                self.portfolio['holdings'][company_id] = {
+                    'symbol': company.symbol,
+                    'company_name': company.name,
+                    'quantity': quantity,
+                    'avg_price': price
+                }
+            
+            # Record transaction
+            if company:
+                self.portfolio['transaction_history'].append({
+                    "date": date,
+                    "symbol": company.symbol,
+                    "company_id": company_id,
+                    "company_name": company.name,
+                    "action": "BUY",
+                    "quantity": quantity,
+                    "price": price,
+                    "total_value": float(cost),
+                    "portfolio_value": self.get_portfolio_value(date),
+                    "cash_balance": self.portfolio['cash_balance']
+                })
+                logger.info(f"BUY: {quantity} shares of {company.symbol} at {price} on {date}")
+        except (ValueError, InvalidOperation) as e:
+            logger.error(f"Error executing buy for company {company_id}: {e}")
 
     def execute_sell(self, company_id: int, quantity: int, price: float, date: date):
         """Execute sell with proper validation and tracking"""
-        if company_id not in self.portfolio['holdings']:
-            logger.warning(f"Cannot sell company {company_id}: not in portfolio")
-            return
+        try:
+            if company_id not in self.portfolio['holdings']:
+                logger.warning(f"Cannot sell company {company_id}: not in portfolio")
+                return
+                
+            if price <= 0:
+                logger.error(f"Cannot execute sell for company {company_id}: invalid price {price}")
+                return
+                
+            holding = self.portfolio['holdings'][company_id]
+            sell_qty = min(quantity, holding['quantity'])
+            proceeds = Decimal(str(sell_qty)) * Decimal(str(price))
+            proceeds = proceeds.quantize(Decimal('0.01'), ROUND_HALF_UP)
             
-        if price <= 0:
-            logger.error(f"Cannot execute sell for company {company_id}: invalid price {price}")
-            return
+            # Update portfolio
+            self.portfolio['cash_balance'] = float(
+                Decimal(str(self.portfolio['cash_balance'])) + proceeds
+            )
+            holding['quantity'] -= sell_qty
             
-        holding = self.portfolio['holdings'][company_id]
-        sell_qty = min(quantity, holding['quantity'])
-        proceeds = Decimal(str(sell_qty * price)).quantize(Decimal('0.01'), ROUND_HALF_UP)
-        
-        # Update portfolio
-        self.portfolio['cash_balance'] = float(
-            Decimal(str(self.portfolio['cash_balance'])) + proceeds
-        )
-        holding['quantity'] -= sell_qty
-        
-        if holding['quantity'] <= 0:
-            del self.portfolio['holdings'][company_id]
-        
-        # Record transaction
-        company = self.get_company_info(company_id)
-        if company:
-            self.portfolio['transaction_history'].append({
-                "date": date,
-                "symbol": company.symbol,
-                "company_id": company_id,
-                "company_name": company.name,
-                "action": "SELL",
-                "quantity": sell_qty,
-                "price": price,
-                "total_value": float(proceeds),
-                "portfolio_value": self.get_portfolio_value(date),
-                "cash_balance": self.portfolio['cash_balance']
-            })
-            logger.info(f"SELL: {sell_qty} shares of {company.symbol} at {price} on {date}")
+            if holding['quantity'] <= 0:
+                del self.portfolio['holdings'][company_id]
+            
+            # Record transaction
+            company = self.get_company_info(company_id)
+            if company:
+                self.portfolio['transaction_history'].append({
+                    "date": date,
+                    "symbol": company.symbol,
+                    "company_id": company_id,
+                    "company_name": company.name,
+                    "action": "SELL",
+                    "quantity": sell_qty,
+                    "price": price,
+                    "total_value": float(proceeds),
+                    "portfolio_value": self.get_portfolio_value(date),
+                    "cash_balance": self.portfolio['cash_balance']
+                })
+                logger.info(f"SELL: {sell_qty} shares of {company.symbol} at {price} on {date}")
+        except (ValueError, InvalidOperation) as e:
+            logger.error(f"Error executing sell for company {company_id}: {e}")
 
     def record_portfolio_snapshot(self, date: date):
         """Record complete portfolio state at given date with safe decimal operations"""
         try:
-            getcontext().prec = 16
+            getcontext().prec = 28
             getcontext().rounding = ROUND_HALF_UP
 
             holdings_detail = {}
@@ -540,7 +552,7 @@ class BackTestServices:
                     quantity = Decimal(str(holding['quantity']))
                     value = quantity * current_price
                     holdings_value += value
-                    print("Value before quantize:", value, type(value))
+                    
                     holdings_detail[cid] = {
                         'symbol': company.symbol,
                         'company_name': company.name,
@@ -591,7 +603,7 @@ class BackTestServices:
         try:
             logger.info(f"Starting backtest from {request.start_date} to {request.end_date}")
             
-            getcontext().prec = 16
+            getcontext().prec = 28
             
             # Initialize portfolio
             self.initialize_portfolio()
