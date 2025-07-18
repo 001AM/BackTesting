@@ -6,7 +6,7 @@ import PortfolioAnalytics from "@/components/PortfolioAnalytics"
 import ExportSection from "@/components/ExportSection"
 // import { AdvancedAnalytics } from "@/components/advanced-analytics"
 
-export default function ResultsDashboard() {
+export default function ResultsDashboard({data}) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -23,12 +23,12 @@ export default function ResultsDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <MetricsGrid />
-          <PerformanceCharts />
+          <MetricsGrid data={data}/>
+          <PerformanceCharts equitydata={data.equity_curve} drawdown={data.drawdown_series}/>
         </TabsContent>
 
         <TabsContent value="charts" className="space-y-4">
-          <PerformanceCharts />
+          <PerformanceCharts equitydata={data.equity_curve} drawdown={data.drawdown_series}/>
         </TabsContent>
 
         <TabsContent value="portfolio" className="space-y-4">
