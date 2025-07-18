@@ -32,7 +32,7 @@ export default function ResultsDashboard({data}) {
         </TabsContent>
 
         <TabsContent value="portfolio" className="space-y-4">
-          <PortfolioAnalytics />
+          <PortfolioAnalytics portfolioData={data}/>
         </TabsContent>
 
         {/* <TabsContent value="analytics" className="space-y-4">

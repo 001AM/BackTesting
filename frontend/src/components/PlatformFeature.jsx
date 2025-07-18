@@ -20,7 +20,7 @@ function PlatformFeature() {
               </CardHeader>
               <CardContent>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Monthly, Quarterly, Yearly rebalancing</li>
+                  <li>• Quarterly, Yearly rebalancing</li>
                   <li>• Equal, Market-cap, Metric-weighted sizing</li>
                   <li>• Custom portfolio sizes</li>
                 </ul>

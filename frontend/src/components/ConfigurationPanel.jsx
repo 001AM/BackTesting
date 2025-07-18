@@ -102,11 +102,11 @@ export function ConfigurationPanel({setBasicConfig, setRankingConfig, setFilters
                 </CardTitle>
               </CardHeader>
             </CollapsibleTrigger>
-            <CollapsibleContent>
+            <div className={`transition-all duration-200 ${openSections[key] ? 'block' : 'hidden'}`}>
               <CardContent className="m-2">
                 <Component onConfigChange={propFunctions} />
               </CardContent>
-            </CollapsibleContent>
+            </div>
           </Collapsible>
         </Card>
       ))}

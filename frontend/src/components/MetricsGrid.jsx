@@ -2,7 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Activity, Target, Shield, Zap } from "lucide-react"
 
 export default function MetricsGrid({ data }) {
-  console.log(data)
+  console.log(data,"==================1")
+  console.log(data.compound_annual_growth_rate,"===============================")
 
   const metrics = [
     {

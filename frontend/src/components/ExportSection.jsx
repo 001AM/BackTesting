@@ -35,12 +35,12 @@ export default function ExportSection() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button variant="outline" size="sm" onClick={() => handleExport("portfolio-log")}>
+      <Button variant="outline" size="sm" onClick={() => handleExport("portfolio-log")} className="hidden">
         <Download className="w-4 h-4 mr-2" />
         Portfolio Log
       </Button>
 
-      <Button variant="outline" size="sm" onClick={() => handleExport("performance-report")}>
+      <Button variant="outline" size="sm" onClick={() => handleExport("performance-report")} className="hidden">
         <FileText className="w-4 h-4 mr-2" />
         Performance Report
       </Button>

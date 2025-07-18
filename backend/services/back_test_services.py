@@ -6,7 +6,7 @@ from sqlalchemy import and_, func, desc
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date, timedelta
 from pydantic import BaseModel, Field
-from decimal import Decimal, ROUND_HALF_UP, getcontext
+from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation, ROUND_DOWN
 import pandas as pd
 import numpy as np
 import logging
@@ -22,21 +22,27 @@ class BackTestServices:
         self.price_cache = {}
         self.metrics_calculator = PerformanceMetrics()
         self.initialize_portfolio()
-        getcontext().prec = 8
+        getcontext().prec = 16
         
     def initialize_portfolio(self):
         """Initialize or reset the portfolio"""
         self.portfolio = {
-            "holdings": {},       # {company_id: {'quantity': qty, 'avg_price': price}}
+            "holdings": {},       # {company_id: {'quantity': qty, 'avg_price': price, 'symbol' symbol, 'company_name' : name}}
             "cash_balance": 0,    # Available cash
             "total_value": 0,     # Total portfolio value (cash + investments)
             "transaction_history": []
         }
         self.portfolio_history = []
+        self.companies_list= {}
 
     def get_company_info(self, company_id: int) -> Company:
-        """Get company information from database"""
-        return self.db.query(Company).filter(Company.id == company_id).first()
+        if company_id not in self.companies_list:
+            """Get company information from database"""
+            c = self.db.query(Company).filter(Company.id == company_id).first()
+            if c:  # Only cache if we found a company
+                self.companies_list[company_id] = c
+            return c
+        return self.companies_list[company_id]
 
     def get_current_price(self, company_id: int, as_of_date: date) -> float:
         """Get current price for a company on specific date with fallback logic"""
@@ -67,33 +73,43 @@ class BackTestServices:
         logger.error(f"No price data found for company {company_id} on or before {as_of_date}")
         return 0.0
 
-    def weights_changed(self, current_weights: Dict[int, float], new_weights: Dict[int, float], tolerance: float = 0.01) -> bool:
-        """Check if portfolio weights have changed significantly"""
+    def weights_changed(self, current_weights: Dict[int, float], new_weights: Dict[int, Decimal], tolerance: float = 0.01) -> bool:
+        """Check if portfolio weights have changed significantly with type safety"""
         if set(current_weights.keys()) != set(new_weights.keys()):
             return True
         
         for cid in current_weights:
-            if abs(current_weights[cid] - new_weights.get(cid, 0)) > tolerance:
+            try:
+                current = Decimal(str(current_weights[cid]))
+                new = new_weights.get(cid, Decimal('0'))
+                if abs(current - new) > Decimal(str(tolerance)):
+                    return True
+            except (TypeError, ValueError, InvalidOperation) as e:
+                logger.error(f"Weight comparison error for {cid}: {e}")
                 return True
         return False
 
-    def calculate_current_weights(self) -> Dict[int, float]:
-        """Calculate current portfolio weights"""
+    def calculate_current_weights(self) -> Dict[int, Decimal]:
+        """Calculate current portfolio weights with Decimal precision"""
         if not self.portfolio['holdings']:
             return {}
             
-        total_value = self.get_portfolio_value(date.today())
-        if total_value <= 0:
+        total_value = Decimal(str(self.get_portfolio_value(date.today())))
+        if total_value <= Decimal('0'):
             return {}
             
         weights = {}
         for cid, holding in self.portfolio['holdings'].items():
-            current_price = self.get_current_price(cid, date.today())
-            if current_price > 0:
-                holding_value = holding['quantity'] * current_price
-                weights[cid] = holding_value / total_value
-            else:
-                weights[cid] = 0.0
+            try:
+                current_price = Decimal(str(self.get_current_price(cid, date.today())))
+                if current_price > Decimal('0'):
+                    holding_value = Decimal(str(holding['quantity'])) * current_price
+                    weights[cid] = holding_value / total_value
+                else:
+                    weights[cid] = Decimal('0')
+            except (ValueError, InvalidOperation) as e:
+                logger.error(f"Error calculating weight for {cid}: {e}")
+                weights[cid] = Decimal('0')
                 
         return weights
 
@@ -145,7 +161,8 @@ class BackTestServices:
             query = query.filter(FundamentalData.roce >= backtestfilters.min_roce)
         
         if backtestfilters.pat_positive:
-            query = query.filter(FundamentalData.pat > 0)
+            query = query.filter(FundamentalData.pat > backtestfilters.pat_positive)
+        
         return query.all()
 
     def get_stock_prices(self, company_ids: List[int], start_date: date, end_date: date) -> pd.DataFrame:
@@ -197,70 +214,89 @@ class BackTestServices:
             return pd.DataFrame()
 
     def rank_companies(self, companies: List[Tuple[Company, FundamentalData]], 
-                    metrics: List[Dict[str, bool]]) -> List[Tuple[Company, float]]:
-        """Rank companies based on selected metrics, handling None values safely."""
-        if not metrics:
-            return [(company, fundamental, 0.0) for company, fundamental in companies]
+                                metrics: List[Dict[str, bool]]) -> List[Tuple[Company, FundamentalData, float]]:
+        """Vectorized ranking using numpy operations"""
+        if not metrics or not companies:
+            return [(c[0], c[1], 0.0) for c in companies]
         
         metrics_dict = metrics[0]
-        ranked = []
         
-        for company, fundamental in companies:
-            score = 0.0
-            for metric, higher_is_better in metrics_dict.items():
+        # Convert to numpy arrays for vectorized operations
+        scores = np.zeros(len(companies))
+        
+        for metric, higher_is_better in metrics_dict.items():
+            values = []
+            for _, fundamental in companies:
                 value = getattr(fundamental, metric, None)
-                
-                # Skip if the metric is None or not a valid number
-                if value is None:
-                    continue
-                
-                try:
-                    value_float = float(value)
-                except (TypeError, ValueError):
-                    continue  # Skip if conversion fails
-                
-                # Adjust score based on whether higher is better
-                score += value_float if higher_is_better else -value_float
+                if value is not None:
+                    try:
+                        values.append(float(value))
+                    except (TypeError, ValueError):
+                        values.append(0.0)
+                else:
+                    values.append(0.0)
             
-            ranked.append((company, fundamental, score))
+            values_array = np.array(values)
+            if higher_is_better:
+                scores += values_array
+            else:
+                scores -= values_array
         
-        # Sort by score in descending order
-        return sorted(ranked, key=lambda x: x[2], reverse=True)
+        # Create ranked results
+        ranked_indices = np.argsort(scores)[::-1]  # Sort in descending order
+        return [(companies[i][0], companies[i][1], scores[i]) for i in ranked_indices]
 
     def calculate_weights(self, companies: List[Tuple[Company, FundamentalData, float]], 
                         method: str) -> Dict[int, float]:
-        """Calculate portfolio weights based on specified method"""
+        """Calculate portfolio weights based on specified method with Decimal safety"""
         if not companies:
             return {}
             
-        if method == "equal":
-            weight = 1.0 / len(companies)
-            return {c[0].id: weight for c in companies}
-            
-        elif method == "market_cap":
-            valid = [c for c in companies if hasattr(c[1], 'market_cap') and c[1].market_cap]
-            if not valid:
-                return {c[0].id: 0 for c in companies}
-            total = sum(float(c[1].market_cap) for c in valid)
-            return {c[0].id: float(c[1].market_cap)/total for c in valid}
-            
-        elif method == "metric_weighted":
-            valid = [c for c in companies if hasattr(c[1], 'roce') and c[1].roce is not None]
-            scores = []
-            for c in valid:
-                roce_str = str(c[1].roce).strip().replace('%', '')
-                try:
-                    scores.append(float(roce_str))
-                except ValueError:
-                    scores.append(0.0)
-
-            total = sum(scores)
-            return {
-                c[0].id: (float(str(c[1].roce).replace('%', '').strip()) / total if total != 0 else 0)
-            }
-            
-        else:
-            raise ValueError(f"Unknown weighting method: {method}")
+        try:
+            if method == "equal":
+                weight = Decimal('1') / Decimal(str(len(companies)))
+                return {c[0].id: float(weight) for c in companies}
+                
+            elif method == "market_cap":
+                valid = []
+                for c in companies:
+                    try:
+                        if hasattr(c[1], 'market_cap') and c[1].market_cap:
+                            market_cap = Decimal(str(c[1].market_cap))
+                            if market_cap > Decimal('0'):
+                                valid.append((c[0].id, market_cap))
+                    except:
+                        continue
+                        
+                if not valid:
+                    return {c[0].id: 0 for c in companies}
+                    
+                total = sum(mc for _, mc in valid)
+                return {cid: float(mc/total) for cid, mc in valid}
+                
+            elif method == "metric_weighted":
+                valid = []
+                for c in companies:
+                    try:
+                        if hasattr(c[1], 'roce') and c[1].roce is not None:
+                            roce_str = str(c[1].roce).strip().replace('%', '')
+                            score = Decimal(roce_str)
+                            if score > Decimal('0'):
+                                valid.append((c[0].id, score))
+                    except:
+                        continue
+                        
+                if not valid:
+                    return {c[0].id: 0 for c in companies}
+                    
+                total = sum(score for _, score in valid)
+                return {cid: float(score/total) for cid, score in valid}
+                
+            else:
+                raise ValueError(f"Unknown weighting method: {method}")
+        except Exception as e:
+            logger.error(f"Error calculating weights: {e}")
+            return {c[0].id: 0 for c in companies}
 
     def validate_prices_before_rebalance(self, company_ids: List[int], rebalance_date: date) -> List[int]:
         """Validate that price data exists for companies before rebalancing"""
@@ -275,58 +311,121 @@ class BackTestServices:
 
     def execute_rebalance(self, weights: Dict[int, float], current_date: date):
         """Execute portfolio rebalancing with proper validation and tracking"""
-        # Validate that we have price data for all companies
-        valid_company_ids = self.validate_prices_before_rebalance(list(weights.keys()), current_date)
-        
-        # Filter weights to only include companies with valid prices
-        valid_weights = {cid: weights[cid] for cid in valid_company_ids}
-        
-        if not valid_weights:
-            logger.warning(f"No valid companies for rebalancing on {current_date}")
-            return
-        
-        # Renormalize weights after filtering
-        total_weight = sum(valid_weights.values())
-        if total_weight > 0:
-            valid_weights = {cid: weight/total_weight for cid, weight in valid_weights.items()}
-        
-        # Check if weights have changed significantly
-        current_weights = self.calculate_current_weights()
-        if current_weights and not self.weights_changed(current_weights, valid_weights):
-            logger.info(f"Portfolio weights unchanged, skipping rebalance on {current_date}")
-            return
-        
-        logger.info(f"Executing rebalance on {current_date} with {len(valid_weights)} companies")
-        
-        # 1. Sell all existing holdings
-        holdings_copy = dict(self.portfolio['holdings'])
-        for company_id, holding in holdings_copy.items():
-            price = self.get_current_price(company_id, current_date)
-            if price > 0:
-                self.execute_sell(company_id, holding['quantity'], price, current_date)
-            else:
-                logger.error(f"Cannot sell {holding['quantity']} shares of company {company_id} due to missing price data")
-        
-        # 2. Calculate target allocations
-        total_capital = Decimal(str(self.portfolio['cash_balance']))
-        target_values = {
-            cid: (total_capital * Decimal(str(weight))).quantize(Decimal('0.01'), ROUND_HALF_UP)
-            for cid, weight in valid_weights.items()
-        }
-        
-        # 3. Execute buys according to targets
-        for company_id, target_value in target_values.items():
-            price = Decimal(str(self.get_current_price(company_id, current_date)))
-            if price <= 0:
-                logger.warning(f"Cannot buy company {company_id} due to missing price data")
-                continue
-                
-            quantity = int(target_value / price)
-            if quantity > 0:
-                self.execute_buy(company_id, quantity, float(price), current_date)
-        
-        # 4. Record portfolio snapshot
-        self.record_portfolio_snapshot(current_date)
+        try:
+            # Initialize decimal context for this operation
+            getcontext().prec = 16
+            getcontext().rounding = ROUND_HALF_UP
+
+            # Validate that we have price data for all companies
+            valid_company_ids = []
+            for company_id in weights.keys():
+                try:
+                    price = Decimal(str(self.get_current_price(company_id, current_date)))
+                    if price > Decimal('0'):
+                        valid_company_ids.append(company_id)
+                    else:
+                        logger.warning(f"Invalid price for company {company_id} on {current_date}")
+                except (ValueError, InvalidOperation) as e:
+                    logger.error(f"Price conversion error for company {company_id}: {e}")
+                    continue
+
+            if not valid_company_ids:
+                logger.warning(f"No valid companies for rebalancing on {current_date}")
+                return
+
+            # Filter and normalize weights
+            try:
+                total_weight = sum(Decimal(str(weights[cid])) for cid in valid_company_ids)
+                if total_weight <= Decimal('0'):
+                    logger.error(f"Invalid total weight {total_weight} for rebalance")
+                    return
+
+                valid_weights = {
+                    cid: (Decimal(str(weights[cid])) / total_weight).quantize(Decimal('0.000001'))
+                    for cid in valid_company_ids
+                }
+            except (ValueError, InvalidOperation) as e:
+                logger.error(f"Weight calculation error: {e}")
+                return
+
+            # Check if weights have changed significantly
+            current_weights = self.calculate_current_weights()
+            if current_weights and not self.weights_changed(current_weights, valid_weights):
+                logger.info(f"Portfolio weights unchanged, skipping rebalance on {current_date}")
+                return
+
+            logger.info(f"Executing rebalance on {current_date} with {len(valid_weights)} companies")
+
+            # 1. Sell all existing holdings
+            holdings_copy = dict(self.portfolio['holdings'])
+            for company_id, holding in holdings_copy.items():
+                try:
+                    price = Decimal(str(self.get_current_price(company_id, current_date)))
+                    if price <= Decimal('0'):
+                        logger.error(f"Invalid price for company {company_id}")
+                        continue
+
+                    quantity = Decimal(str(holding['quantity']))
+                    if quantity <= Decimal('0'):
+                        continue
+
+                    self.execute_sell(
+                        company_id=company_id,
+                        quantity=int(quantity),
+                        price=float(price),
+                        date=current_date
+                    )
+                except (ValueError, InvalidOperation) as e:
+                    logger.error(f"Sell operation failed for company {company_id}: {e}")
+                    continue
+
+            # 2. Calculate target allocations
+            try:
+                total_capital = Decimal(str(self.portfolio['cash_balance']))
+                if total_capital <= Decimal('0'):
+                    logger.error("No capital available for rebalance")
+                    return
+
+                target_values = {}
+                for cid, weight in valid_weights.items():
+                    try:
+                        target_value = (total_capital * weight).quantize(Decimal('0.01'))
+                        target_values[cid] = target_value
+                    except (ValueError, InvalidOperation) as e:
+                        logger.error(f"Target value calculation failed for {cid}: {e}")
+                        continue
+            except (ValueError, InvalidOperation) as e:
+                logger.error(f"Capital calculation error: {e}")
+                return
+
+            # 3. Execute buys according to targets
+            for company_id, target_value in target_values.items():
+                try:
+                    price = Decimal(str(self.get_current_price(company_id, current_date)))
+                    if price <= Decimal('0'):
+                        logger.warning(f"Invalid price for company {company_id}")
+                        continue
+
+                    quantity = (target_value / price).quantize(Decimal('1.'), rounding=ROUND_DOWN)
+                    if quantity <= Decimal('0'):
+                        continue
+
+                    self.execute_buy(
+                        company_id=company_id,
+                        quantity=int(quantity),
+                        price=float(price),
+                        date=current_date
+                    )
+                except (ValueError, InvalidOperation) as e:
+                    logger.error(f"Buy operation failed for company {company_id}: {e}")
+                    continue
+
+            # 4. Record portfolio snapshot
+            self.record_portfolio_snapshot(current_date)
+
+        except Exception as e:
+            logger.error(f"Rebalance failed on {current_date}: {str(e)}", exc_info=True)
+            raise
 
     def execute_buy(self, company_id: int, quantity: int, price: float, date: date):
         """Execute buy with proper validation and tracking"""
@@ -343,6 +442,7 @@ class BackTestServices:
         
         # Update cash and holdings
         self.portfolio['cash_balance'] = float(cash_balance - cost)
+        company = self.get_company_info(company_id)
         
         if company_id in self.portfolio['holdings']:
             holding = self.portfolio['holdings'][company_id]
@@ -351,17 +451,20 @@ class BackTestServices:
             new_avg_price = (total_cost / Decimal(str(new_quantity))).quantize(Decimal('0.01'), ROUND_HALF_UP)
             
             holding.update({
+                'symbol' : company.symbol,
+                'company_name' : company.name,
                 'quantity': new_quantity,
                 'avg_price': float(new_avg_price)
             })
         else:
             self.portfolio['holdings'][company_id] = {
+                'symbol' : company.symbol,
+                'company_name' : company.name,
                 'quantity': quantity,
                 'avg_price': price
             }
         
         # Record transaction
-        company = self.get_company_info(company_id)
         if company:
             self.portfolio['transaction_history'].append({
                 "date": date,
@@ -418,48 +521,77 @@ class BackTestServices:
             logger.info(f"SELL: {sell_qty} shares of {company.symbol} at {price} on {date}")
 
     def record_portfolio_snapshot(self, date: date):
-        """Record complete portfolio state at given date"""
-        holdings_detail = {}
-        holdings_value = Decimal('0')
-        
-        for cid, holding in self.portfolio['holdings'].items():
-            current_price = self.get_current_price(cid, date)
-            if current_price > 0:
-                current_price_decimal = Decimal(str(current_price))
-                value = Decimal(str(holding['quantity'])) * current_price_decimal
-                holdings_value += value
+        """Record complete portfolio state at given date with safe decimal operations"""
+        try:
+            getcontext().prec = 16
+            getcontext().rounding = ROUND_HALF_UP
+
+            holdings_detail = {}
+            holdings_value = Decimal('0')
+            
+            for cid, holding in self.portfolio['holdings'].items():
+                company = self.get_company_info(cid)
+                try:
+                    current_price = Decimal(str(self.get_current_price(cid, date)))
+                    if current_price <= Decimal('0'):
+                        logger.warning(f"Invalid price for company {cid} on {date}")
+                        current_price = Decimal('0')
+                    
+                    quantity = Decimal(str(holding['quantity']))
+                    value = quantity * current_price
+                    holdings_value += value
+                    print("Value before quantize:", value, type(value))
+                    holdings_detail[cid] = {
+                        'symbol': company.symbol,
+                        'company_name': company.name,
+                        'quantity': int(quantity),
+                        'avg_price': float(Decimal(str(holding['avg_price'])).quantize(Decimal('0.01'))),
+                        'current_price': float(current_price.quantize(Decimal('0.01'))),
+                        'value': float(value.quantize(Decimal('0.01')))
+                    }
+                except (ValueError, InvalidOperation) as e:
+                    logger.error(f"Error recording holding for company {cid}: {e}")
+                    holdings_detail[cid] = {
+                        'symbol': company.symbol,
+                        'company_name': company.name,
+                        'quantity': holding['quantity'],
+                        'avg_price': holding['avg_price'],
+                        'current_price': 0.0,
+                        'value': 0.0
+                    }
+                    continue
+            
+            try:
+                cash_balance = Decimal(str(self.portfolio['cash_balance']))
+                total_value = cash_balance + holdings_value
                 
-                holdings_detail[cid] = {
-                    'quantity': holding['quantity'],
-                    'avg_price': holding['avg_price'],
-                    'current_price': current_price,
-                    'value': float(value)
+                # Ensure total_value is properly quantized
+                if not total_value.is_finite():
+                    logger.error(f"Invalid total value calculation: {total_value}")
+                    total_value = Decimal('0')
+                
+                snapshot = {
+                    "date": date,
+                    "holdings": holdings_detail,
+                    "cash_balance": float(cash_balance.quantize(Decimal('0.01'))),
+                    "total_value": float(total_value.quantize(Decimal('0.01')))
                 }
-            else:
-                # If no current price, use last known value but log warning
-                logger.warning(f"No current price for company {cid} on {date}, using zero value")
-                holdings_detail[cid] = {
-                    'quantity': holding['quantity'],
-                    'avg_price': holding['avg_price'],
-                    'current_price': 0.0,
-                    'value': 0.0
-                }
-        
-        total_value = Decimal(str(self.portfolio['cash_balance'])) + holdings_value
-        self.portfolio_history.append({
-            "date": date,
-            "holdings": holdings_detail,
-            "cash_balance": self.portfolio['cash_balance'],
-            "total_value": float(total_value.quantize(Decimal('0.01'), ROUND_HALF_UP))
-        })
+                
+                self.portfolio_history.append(snapshot)
+            except (ValueError, InvalidOperation) as e:
+                logger.error(f"Error recording portfolio snapshot: {e}")
+                raise
+
+        except Exception as e:
+            logger.error(f"Failed to record portfolio snapshot on {date}: {e}", exc_info=True)
+            raise
 
     def run_backtest(self, request: BacktestRequest) -> Dict[str, Any]:
         """Run complete backtest with proper portfolio tracking and final liquidation"""
         try:
             logger.info(f"Starting backtest from {request.start_date} to {request.end_date}")
             
-            from decimal import Decimal, getcontext
-            getcontext().prec = 8
+            getcontext().prec = 16
             
             # Initialize portfolio
             self.initialize_portfolio()

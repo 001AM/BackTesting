@@ -20,8 +20,12 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 
 export function BasicConfig({ onConfigChange }) {
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [startDate, setStartDate] = useState(new Date("2023-07-18"));
+  const [endDate, setEndDate] = useState(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday;
+  });
   const [rebalanceFreq, setRebalanceFreq] = useState("quarterly");
   const [portfolioSize, setPortfolioSize] = useState("20");
   const [initialCapital, setInitialCapital] = useState("1000000");
@@ -103,10 +107,8 @@ export function BasicConfig({ onConfigChange }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="monthly">Monthly</SelectItem>
             <SelectItem value="quarterly">Quarterly</SelectItem>
             <SelectItem value="yearly">Yearly</SelectItem>
-            <SelectItem value="custom">Custom</SelectItem>
           </SelectContent>
         </Select>
       </div>

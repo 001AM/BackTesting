@@ -24,9 +24,9 @@ import {
 import { ChevronDown } from "lucide-react";
 
 export function FilteringSystem({onConfigChange}) {
-  const [marketCapRange, setMarketCapRange] = useState([1000, 10000]);
+  const [marketCapRange, setMarketCapRange] = useState([1000, 100000]);
   const [roceThreshold, setRoceThreshold] = useState("15");
-  const [patPositive, setPatPositive] = useState(true);
+  const [patThreshold, setPatThreshold] = useState("0");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [peRatio, setPeRatio] = useState("");
   const [debtEquity, setDebtEquity] = useState("");
@@ -52,14 +52,14 @@ export function FilteringSystem({onConfigChange}) {
         min_market_cap: marketCapRange[0],
         max_market_cap: marketCapRange[1],
         min_roce: parseFloat(roceThreshold) || 0,
-        pat_positive: patPositive,
+        pat_positive: parseFloat(patThreshold) || 0,
         min_pe_ratio: peRange.min,
         max_pe_ratio: peRange.max,
         min_debt_equity: debtRange.min,
         max_debt_equity: debtRange.max,
       });
     }
-  }, [marketCapRange, roceThreshold, patPositive, peRatio, debtEquity, onConfigChange]);
+  }, [marketCapRange, roceThreshold, patThreshold, peRatio, debtEquity, onConfigChange]);
 
   return (
     <div className="space-y-6">
@@ -70,9 +70,9 @@ export function FilteringSystem({onConfigChange}) {
           <Slider
             value={marketCapRange}
             onValueChange={setMarketCapRange}
-            max={50000}
-            min={100}
-            step={100}
+            max={1000000}
+            min={1000}
+            step={1000}
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-2">
@@ -100,9 +100,20 @@ export function FilteringSystem({onConfigChange}) {
       </div>
 
       {/* PAT Filter */}
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">PAT {">"} 0 Filter</Label>
-        <Switch checked={patPositive} onCheckedChange={setPatPositive} />
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">PAT Threshold</Label>
+        <div className="relative">
+          <Input
+            type="number"
+            value={patThreshold}
+            onChange={(e) => setPatThreshold(e.target.value)}
+            className="pr-8"
+            placeholder="0"
+          />
+          <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+            Cr
+          </span>
+        </div>
       </div>
 
       {/* Advanced Filters */}

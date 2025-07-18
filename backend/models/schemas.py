@@ -88,7 +88,7 @@ class BacktestRequest(BaseModel):
     min_market_cap: Optional[float] = Field(None, description="Minimum market cap (Cr)")
     max_market_cap: Optional[float] = Field(None, description="Maximum market cap (Cr)")
     min_roce: Optional[float] = Field(15, description="Minimum ROCE (%)")
-    pat_positive: bool = Field(True, description="PAT > 0 filter")
+    pat_positive: int = Field(10, description="PAT > 0 filter")
     
     # Ranking criteria
     ranking_metrics: List[Dict[str, bool]] = Field(

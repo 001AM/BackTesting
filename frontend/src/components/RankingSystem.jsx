@@ -21,13 +21,11 @@ import { Info, X, TrendingUp, TrendingDown } from "lucide-react";
 
 const availableMetrics = [
   { id: "roe", name: "ROE", description: "Return on Equity" },
-  { id: "pe", name: "P/E", description: "Price to Earnings Ratio" },
+  { id: "pe_ratio", name: "P/E", description: "Price to Earnings Ratio" },
   { id: "roce", name: "ROCE", description: "Return on Capital Employed" },
-  { id: "revenue_growth", name: "Revenue Growth", description: "Year over Year Revenue Growth" },
-  { id: "profit_growth", name: "Profit Growth", description: "Year over Year Profit Growth" },
-  { id: "debt_equity", name: "Debt/Equity", description: "Debt to Equity Ratio" },
+  { id: "debt_equity_ratio", name: "Debt/Equity", description: "Debt to Equity Ratio" },
   { id: "current_ratio", name: "Current Ratio", description: "Current Assets / Current Liabilities" },
-  { id: "pbv", name: "P/BV", description: "Price to Book Value" },
+  { id: "pb_ratio", name: "P/BV", description: "Price to Book Value" },
 ];
 
 export function RankingSystem({onConfigChange}) {
