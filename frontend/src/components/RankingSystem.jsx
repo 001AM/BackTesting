@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,7 +30,7 @@ const availableMetrics = [
   { id: "pbv", name: "P/BV", description: "Price to Book Value" },
 ];
 
-export function RankingSystem() {
+export function RankingSystem({onConfigChange}) {
   const [selectedMetrics, setSelectedMetrics] = useState(["roe", "roce"]);
   const [metricDirections, setMetricDirections] = useState({
     roe: "desc",
@@ -43,6 +41,18 @@ export function RankingSystem() {
     roe: 50,
     roce: 50,
   });
+
+  useEffect(() => {
+    if (onConfigChange) {
+      const rankingMetrics = selectedMetrics.map(metric => ({
+        [metric]: metricDirections[metric] === "desc"
+      }));
+      
+      onConfigChange({
+        ranking_metrics: rankingMetrics
+      });
+    }
+  }, [selectedMetrics, metricDirections, onConfigChange]);
 
   const addMetric = (metricId) => {
     if (!selectedMetrics.includes(metricId)) {

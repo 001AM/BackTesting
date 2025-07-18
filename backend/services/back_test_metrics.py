@@ -72,15 +72,42 @@ class PerformanceMetrics:
     
     def calculate_equity_curve(self, portfolio_history: List[Dict]) -> pd.DataFrame:
         """Calculate equity curve data"""
+        import yfinance as yf
+        import pandas as pd
+            # Process portfolio data
         df = pd.DataFrame(portfolio_history)
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values('date')
-        
-        # Calculate cumulative returns
-        df['daily_return'] = df['total_value'].pct_change().fillna(0)
-        df['cumulative_return'] = (1 + df['daily_return']).cumprod() - 1
-        
-        return df[['date', 'total_value', 'daily_return', 'cumulative_return']]
+
+        # Get initial portfolio value
+        initial_value = df['total_value'].iloc[0]
+
+        # Fetch and flatten Nifty 50 data
+        start_date = df['date'].iloc[0].strftime('%Y-%m-%d')
+        end_date = df['date'].iloc[-1].strftime('%Y-%m-%d')
+        nifty_data = yf.download('^NSEI', start=start_date, end=end_date)
+        nifty_data.columns = ['_'.join(col).strip() for col in nifty_data.columns.values]  # Fix: Flatten MultiIndex
+        nifty_data = nifty_data.reset_index()  # Convert Date index to a column
+
+        # Merge with portfolio data
+        df = pd.merge(
+            df,
+            nifty_data[['Date', 'Close_^NSEI']],
+            left_on='date',
+            right_on='Date',
+            how='left'
+        )
+        df.rename(columns={'Close_^NSEI': 'nifty_close'}, inplace=True)
+
+        # Forward-fill missing Nifty data (e.g., weekends)
+        df['nifty_close'] = df['nifty_close'].ffill()
+
+        # Calculate Nifty investment value (buy-and-hold)
+        nifty_day1_close = df['nifty_close'].iloc[0]
+        nifty_units = initial_value / nifty_day1_close
+        df['nifty_investment_value'] = nifty_units * df['nifty_close']
+
+        return df[['date', 'total_value', 'nifty_investment_value', 'nifty_close']]
     
     def calculate_drawdown_series(self, portfolio_history: List[Dict]) -> pd.DataFrame:
         """Calculate drawdown series"""
@@ -303,49 +330,71 @@ class PerformanceMetrics:
         performances = []
         
         for (symbol, company_name, company_id), txs in securities.items():
-            buys = [tx for tx in txs if tx['action'] == 'BUY']
-            sells = [tx for tx in txs if tx['action'] == 'SELL']
+            # Sort all transactions by date
+            txs_sorted = sorted(txs, key=lambda x: x['date'])
             
-            if not buys:
-                continue
-                
+            # Track inventory using FIFO method
+            inventory = []
             total_pnl = 0.0
             total_trades = 0
             winning_trades = 0
             buy_value = 0.0
             sell_value = 0.0
             
-            # Calculate P&L and metrics
-            for sell in sells:
-                for buy in buys:
-                    if buy.get('used_quantity', 0) < buy['quantity']:
-                        trade_qty = min(sell['quantity'], buy['quantity'] - buy.get('used_quantity', 0))
-                        pnl = (sell['price'] - buy['price']) * trade_qty
+            for tx in txs_sorted:
+                if tx['action'] == 'BUY':
+                    # Add to inventory
+                    quantity = tx.get('quantity', 1)
+                    if quantity == 0:  # Handle possible 0 quantity buys
+                        quantity = int(tx['total_value'] / tx['price'])
+                    inventory.append({
+                        'date': tx['date'],
+                        'price': tx['price'],
+                        'quantity': quantity
+                    })
+                elif tx['action'] == 'SELL':
+                    # Calculate sell quantity - use quantity if available, otherwise calculate from total_value
+                    sell_qty = tx.get('quantity', 0)
+                    if sell_qty == 0:
+                        sell_qty = int(tx['total_value'] / tx['price'])
+                    sell_price = tx['price']
+                    
+                    while sell_qty > 0 and inventory:
+                        oldest_buy = inventory[0]
+                        trade_qty = min(sell_qty, oldest_buy['quantity'])
                         
+                        # Calculate P&L for this portion
+                        pnl = (sell_price - oldest_buy['price']) * trade_qty
                         total_pnl += pnl
                         total_trades += 1
                         if pnl > 0:
                             winning_trades += 1
-                            
-                        buy_value += buy['price'] * trade_qty
-                        sell_value += sell['price'] * trade_qty
                         
-                        buy['used_quantity'] = buy.get('used_quantity', 0) + trade_qty
-                        sell['quantity'] -= trade_qty
+                        buy_value += oldest_buy['price'] * trade_qty
+                        sell_value += sell_price * trade_qty
                         
-                        if sell['quantity'] <= 0:
-                            break
+                        # Update quantities
+                        oldest_buy['quantity'] -= trade_qty
+                        sell_qty -= trade_qty
+                        
+                        if oldest_buy['quantity'] <= 0:
+                            inventory.pop(0)
             
             if buy_value == 0:
                 continue
                 
             total_return = float((sell_value - buy_value) / buy_value * 100)
             
-            # Calculate holding period
+            # Calculate holding period (using first buy and last sell)
+            buys = [tx for tx in txs if tx['action'] == 'BUY']
+            sells = [tx for tx in txs if tx['action'] == 'SELL']
+            
+            if not buys:
+                continue
+                
             first_buy = min(buys, key=lambda x: x['date'])
             last_sell = max(sells, key=lambda x: x['date']) if sells else max(buys, key=lambda x: x['date'])
-            holding_days = (datetime.strptime(str(last_sell['date']), '%Y-%m-%d') - 
-                          datetime.strptime(str(first_buy['date']), '%Y-%m-%d')).days
+            holding_days = (last_sell['date'] - first_buy['date']).days
             
             # Annualized return
             years = holding_days / 365.25 if holding_days > 0 else 1
@@ -359,11 +408,11 @@ class PerformanceMetrics:
                 company_id=company_id,
                 total_return=total_return,
                 annualized_return=annualized_return,
-                volatility=0.0,  # Would need daily price data
-                sharpe_ratio=0.0,  # Would need daily returns
-                max_drawdown=0.0,  # Would need daily price data
+                volatility=0.0,
+                sharpe_ratio=0.0,
+                max_drawdown=0.0,
                 win_rate=win_rate,
-                profit_factor=0.0,  # Would need more detailed calculation
+                profit_factor=0.0,
                 total_trades=int(total_trades),
                 holding_period_days=int(holding_days),
                 total_pnl=float(total_pnl)
@@ -376,9 +425,9 @@ class PerformanceMetrics:
         
         return {
             "winners": performances[:top_n],
-            "losers": performances[-top_n:][::-1]  # Reverse to show worst first
+            "losers": performances[-top_n:][::-1] if len(performances) >= top_n else []
         }
-    
+
     def calculate_comprehensive_metrics(self, backtest_results: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate all comprehensive metrics"""
         portfolio_history = backtest_results.get('portfolio_history', [])

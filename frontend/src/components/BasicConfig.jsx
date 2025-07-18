@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,13 +19,34 @@ import { Button } from "@/components/ui/button";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 
-export function BasicConfig() {
+export function BasicConfig({ onConfigChange }) {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [rebalanceFreq, setRebalanceFreq] = useState("quarterly");
   const [portfolioSize, setPortfolioSize] = useState("20");
   const [initialCapital, setInitialCapital] = useState("1000000");
   const [weightingMethod, setWeightingMethod] = useState("equal");
+
+  useEffect(() => {
+    if (onConfigChange) {
+      onConfigChange({
+        start_date: startDate ? startDate.toISOString().split("T")[0] : null,
+        end_date: endDate ? endDate.toISOString().split("T")[0] : null,
+        rebalancing_frequency: rebalanceFreq,
+        portfolio_size: parseInt(portfolioSize) || 0,
+        initial_capital: parseInt(initialCapital) || 0,
+        weighting_method: weightingMethod,
+      });
+    }
+  }, [
+    startDate,
+    endDate,
+    rebalanceFreq,
+    portfolioSize,
+    initialCapital,
+    weightingMethod,
+    onConfigChange,
+  ]);
 
   return (
     <div className="space-y-6">
