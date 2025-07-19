@@ -145,6 +145,24 @@ fi
 # Show deployment summary
 echo ""
 echo "🎉 Deployment completed successfully!"
+# If initial deployment, call the populate companies API
+if [ "$DEPLOYMENT_TYPE" = "INITIAL" ]; then
+    echo "📡 Initial deployment: calling /api/v1/populate/populate/companies/..."
+    
+    for i in {1..10}; do
+        if curl -f -X POST http://localhost:8000/api/v1/populate/populate/companies/; then
+            echo "✅ API call succeeded!"
+            break
+        fi
+        echo "⏳ Retrying API call ($i/10)..."
+        sleep 5
+        if [ $i -eq 10 ]; then
+            echo "❌ Failed to call populate API after multiple attempts."
+            exit 1
+        fi
+    done
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 Deployment Summary:"
 echo "   Type: $DEPLOYMENT_TYPE"

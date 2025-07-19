@@ -16,3 +16,13 @@ docker-compose up -d
 echo "Deployment completed successfully!"
 echo "Application is running at http://localhost:8000"
 echo "pgAdmin is available at http://localhost:5050"
+
+# Wait for the FastAPI server to be ready (optional, adjust sleep time if needed)
+echo "Waiting for the API to be ready..."
+sleep 10  # or use healthcheck/wait-for-it script if needed
+
+# Call the API endpoint
+echo "Calling populate companies API..."
+curl -X POST http://localhost:8000/api/v1/populate/populate/companies/
+
+echo "API call completed."

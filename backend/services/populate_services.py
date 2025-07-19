@@ -192,35 +192,40 @@ class SeleniumScrapper:
         finally:
             self.driver.quit()
 
-    def get_nifty200_symbool(self) -> List[str]:
+    def get_nifty200_symbol(self) -> List[str]:
         try:
-            url = "https://www.moneycontrol.com/stocks/marketstats/indexcomp.php?optex=NSE&opttopic=indexcomp&index=49"
+            url = "https://www.nseindia.com/market-data/live-equity-market?symbol=NIFTY%20200"
             logger.info(f"Navigating to: {url}")
             self.driver.get(url)
-            
-            # Reduced wait time
+
+            # Wait for the table to load
+            self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table#equityStockTable")))
+
+            # Let JS-rendered content finish loading (use sleep or wait for visibility of row count)
             time.sleep(2)
-            
-            # Try to handle any popups first
-            self._handle_popups()
-            
-            # Try multiple selectors for the company names
-            companies = self._try_multiple_selectors()
-            
-            if not companies:
-                logger.error("No companies found with any selector")
+
+            # Extract all symbols by locating anchor tags in first column
+            symbol_elements = self.driver.find_elements(By.CSS_SELECTOR, "table#equityStockTable tbody tr td a")
+
+            # Filter only valid symbols (should be in uppercase typically)
+            symbols = [elem.text.strip() for elem in symbol_elements if elem.text.strip().isupper()]
+
+            if not symbols:
+                logger.error("No symbols found in the table")
                 return []
-            
-            logger.info(f"✅ Fetched {len(companies)} companies from Moneycontrol")
-            return companies
+
+            logger.info(f"✅ Fetched {len(symbols)} symbols from NSE India")
+            return symbols
 
         except Exception as e:
-            logger.exception("❌ Error fetching Nifty 200 list:")
+            logger.exception("❌ Error fetching Nifty 200 symbols:")
             return []
 
         finally:
             self.driver.quit()
-            
+
+
+
     def _handle_popups(self):
         """Handle any popups that might appear - optimized"""
         try:
@@ -1420,6 +1425,12 @@ class BacktestingDataManager:
         logger.info("✅ Backtesting data setup completed successfully!")
         return True
     
+    def setup_nifty200_data(self):
+        """Complete setup for backtesting data"""
+        logger.info("🚀 Starting backtesting data setup...")
+        companies_list = SeleniumScrapper().get_nifty200_symbol()
+        self.fast_setup_backtesting_data(companies_list)
+
     def update_all_data(self) -> bool:
         """Update all data (daily routine)"""
         logger.info("🔄 Updating all data...")
