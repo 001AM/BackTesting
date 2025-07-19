@@ -63,7 +63,7 @@ def populate_companies(db: Session = Depends(get_db)):
         def run_population():
             try:
                 logger.info("Starting company population process...")
-                success = cp.fast_setup_backtesting_data()
+                success = cp.setup_nifty200_data()
                 if success:
                     logger.info("✅ Company population completed successfully")
                 else:

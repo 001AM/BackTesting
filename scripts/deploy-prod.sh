@@ -145,6 +145,10 @@ fi
 # Show deployment summary
 echo ""
 echo "🎉 Deployment completed successfully!"
+# Run Alembic migrations inside the container
+echo "Running Alembic migrations..."
+docker exec -it fastapi_app bash -c "cd backend && alembic upgrade head"
+echo "Migrations completed."
 # If initial deployment, call the populate companies API
 if [ "$DEPLOYMENT_TYPE" = "INITIAL" ]; then
     echo "📡 Initial deployment: calling /api/v1/populate/populate/companies/..."

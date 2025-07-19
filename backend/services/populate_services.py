@@ -21,6 +21,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 # SQLAlchemy
 from sqlalchemy import and_, desc
@@ -156,8 +158,21 @@ class SeleniumScrapper:
         
         if headless:
             options.add_argument('--headless')
-            
-        self.driver = webdriver.Chrome(options=options)
+        service = Service("/usr/lib/chromium/chromedriver")
+        try:
+            # Check if chromedriver is in PATH
+            service = Service('/usr/local/bin/chromedriver')
+            self.driver = webdriver.Chrome(service=service, options=options)
+        except Exception as e:
+            print(f"System ChromeDriver not found, trying ChromeDriverManager: {e}")
+            try:
+                # Use ChromeDriverManager as fallback
+                service = Service(ChromeDriverManager().install())
+                self.driver = webdriver.Chrome(service=service, options=options)
+            except Exception as e2:
+                print(f"ChromeDriverManager failed: {e2}")
+                # Last resort - try without explicit service
+                self.driver = webdriver.Chrome(options=options)
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         # Reduced timeout for faster failure detection
@@ -313,8 +328,20 @@ class ScreenerSymbolExtractor:
         
         if headless:
             options.add_argument('--headless')
-            
-        self.driver = webdriver.Chrome(options=options)
+        try:
+            # Check if chromedriver is in PATH
+            service = Service('/usr/local/bin/chromedriver')
+            self.driver = webdriver.Chrome(service=service, options=options)
+        except Exception as e:
+            print(f"System ChromeDriver not found, trying ChromeDriverManager: {e}")
+            try:
+                # Use ChromeDriverManager as fallback
+                service = Service(ChromeDriverManager().install())
+                self.driver = webdriver.Chrome(service=service, options=options)
+            except Exception as e2:
+                print(f"ChromeDriverManager failed: {e2}")
+                # Last resort - try without explicit service
+                self.driver = webdriver.Chrome(options=options)
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         # Reduced timeout
@@ -993,12 +1020,12 @@ class FundamentalDataCollector:
                 success &= self._process_comprehensive_data(company.id, quarterly_financials, quarterly_balance_sheet, quarterly_cash_flow, info, 'Q')
             if success:
                 self._calculate_company_growth_metrics(company.id)
-            self.update_data_log(company.id,"fundamental","success","fundamental", "")
+            self.update_data_log(company.id,"fundamental","success",0, "")
             return success
 
         except Exception as e:
             logger.error(f"Error collecting fundamental data for {symbol}: {e}")
-            self.update_data_log(company.id,"fundamental","error","fundamental", str(e))
+            self.update_data_log(company.id,"fundamental","error",0, str(e))
             return False
 
     def _calculate_financial_ratios(self, revenue, net_income, ebitda, operating_income,
