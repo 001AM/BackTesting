@@ -23,6 +23,32 @@ class BackTestServices:
         self.metrics_calculator = PerformanceMetrics()
         self.initialize_portfolio()
         getcontext().prec = 28  # Increased precision for better decimal handling
+        self.companies_df = None  # Will hold all companies data
+        self.preload_all_companies()
+        
+    def preload_all_companies(self):
+        """Preload all companies into a pandas DataFrame for fast lookup"""
+        try:
+            companies = self.db.query(Company).all()
+            company_data = []
+            for c in companies:
+                company_data.append({
+                    'id': c.id,
+                    'symbol': c.symbol,
+                    'name': c.name,
+                    'is_active': c.is_active,
+                    'sector': getattr(c, 'sector', None),
+                    'industry': getattr(c, 'industry', None)
+                })
+            
+            self.companies_df = pd.DataFrame(company_data)
+            if not self.companies_df.empty:
+                self.companies_df.set_index('id', inplace=True)
+            
+            logger.info(f"Preloaded {len(self.companies_df)} companies into DataFrame")
+        except Exception as e:
+            logger.error(f"Error preloading companies: {e}")
+            self.companies_df = pd.DataFrame()
         
     def initialize_portfolio(self):
         """Initialize or reset the portfolio"""
@@ -33,16 +59,30 @@ class BackTestServices:
             "transaction_history": []
         }
         self.portfolio_history = []
-        self.companies_list= {}
 
-    def get_company_info(self, company_id: int) -> Company:
-        if company_id not in self.companies_list:
-            """Get company information from database"""
-            c = self.db.query(Company).filter(Company.id == company_id).first()
-            if c:  # Only cache if we found a company
-                self.companies_list[company_id] = c
-            return c
-        return self.companies_list[company_id]
+    def get_company_info(self, company_id: int) -> Optional[Dict[str, Any]]:
+        """Get company information from preloaded DataFrame"""
+        try:
+            if self.companies_df is None or self.companies_df.empty:
+                logger.error("Companies DataFrame not initialized")
+                return None
+                
+            if company_id not in self.companies_df.index:
+                logger.warning(f"Company {company_id} not found in preloaded data")
+                return None
+                
+            company_row = self.companies_df.loc[company_id]
+            return {
+                'id': company_id,
+                'symbol': company_row['symbol'],
+                'name': company_row['name'],
+                'is_active': company_row['is_active'],
+                'sector': company_row.get('sector'),
+                'industry': company_row.get('industry')
+            }
+        except Exception as e:
+            logger.error(f"Error getting company info for {company_id}: {e}")
+            return None
 
     def get_current_price(self, company_id: int, as_of_date: date) -> float:
         """Get current price for a company on specific date with fallback logic"""
@@ -457,15 +497,15 @@ class BackTestServices:
                 new_avg_price = (total_cost / Decimal(str(new_quantity))).quantize(Decimal('0.01'), ROUND_HALF_UP)
                 
                 holding.update({
-                    'symbol': company.symbol,
-                    'company_name': company.name,
+                    'symbol': company['symbol'],
+                    'company_name': company['name'],
                     'quantity': new_quantity,
                     'avg_price': float(new_avg_price)
                 })
             else:
                 self.portfolio['holdings'][company_id] = {
-                    'symbol': company.symbol,
-                    'company_name': company.name,
+                    'symbol': company['symbol'],
+                    'company_name': company['name'],
                     'quantity': quantity,
                     'avg_price': price
                 }
@@ -474,9 +514,9 @@ class BackTestServices:
             if company:
                 self.portfolio['transaction_history'].append({
                     "date": date,
-                    "symbol": company.symbol,
+                    "symbol": company['symbol'],
                     "company_id": company_id,
-                    "company_name": company.name,
+                    "company_name": company['name'],
                     "action": "BUY",
                     "quantity": quantity,
                     "price": price,
@@ -484,12 +524,13 @@ class BackTestServices:
                     "portfolio_value": self.get_portfolio_value(date),
                     "cash_balance": self.portfolio['cash_balance']
                 })
-                logger.info(f"BUY: {quantity} shares of {company.symbol} at {price} on {date}")
+                logger.info(f"BUY: {quantity} shares of {company['symbol']} at {price} on {date}")
         except (ValueError, InvalidOperation) as e:
             logger.error(f"Error executing buy for company {company_id}: {e}")
 
     def execute_sell(self, company_id: int, quantity: int, price: float, date: date):
         """Execute sell with proper validation and tracking"""
+
         try:
             if company_id not in self.portfolio['holdings']:
                 logger.warning(f"Cannot sell company {company_id}: not in portfolio")
@@ -518,9 +559,9 @@ class BackTestServices:
             if company:
                 self.portfolio['transaction_history'].append({
                     "date": date,
-                    "symbol": company.symbol,
+                    "symbol": company['symbol'],
                     "company_id": company_id,
-                    "company_name": company.name,
+                    "company_name": company['name'],
                     "action": "SELL",
                     "quantity": sell_qty,
                     "price": price,
@@ -528,7 +569,7 @@ class BackTestServices:
                     "portfolio_value": self.get_portfolio_value(date),
                     "cash_balance": self.portfolio['cash_balance']
                 })
-                logger.info(f"SELL: {sell_qty} shares of {company.symbol} at {price} on {date}")
+                logger.info(f"SELL: {sell_qty} shares of {company['symbol']} at {price} on {date}")
         except (ValueError, InvalidOperation) as e:
             logger.error(f"Error executing sell for company {company_id}: {e}")
 
@@ -540,9 +581,13 @@ class BackTestServices:
 
             holdings_detail = {}
             holdings_value = Decimal('0')
-            
+
             for cid, holding in self.portfolio['holdings'].items():
                 company = self.get_company_info(cid)
+                if not company:
+                    logger.warning(f"Company {cid} not found in preloaded data")
+                    continue
+                    
                 try:
                     current_price = Decimal(str(self.get_current_price(cid, date)))
                     if current_price <= Decimal('0'):
@@ -554,8 +599,8 @@ class BackTestServices:
                     holdings_value += value
                     
                     holdings_detail[cid] = {
-                        'symbol': company.symbol,
-                        'company_name': company.name,
+                        'symbol': company['symbol'],
+                        'company_name': company['name'],
                         'quantity': int(quantity),
                         'avg_price': float(Decimal(str(holding['avg_price'])).quantize(Decimal('0.01'))),
                         'current_price': float(current_price.quantize(Decimal('0.01'))),
@@ -564,8 +609,8 @@ class BackTestServices:
                 except (ValueError, InvalidOperation) as e:
                     logger.error(f"Error recording holding for company {cid}: {e}")
                     holdings_detail[cid] = {
-                        'symbol': company.symbol,
-                        'company_name': company.name,
+                        'symbol': company['symbol'],
+                        'company_name': company['name'],
                         'quantity': holding['quantity'],
                         'avg_price': holding['avg_price'],
                         'current_price': 0.0,
@@ -716,7 +761,6 @@ class BackTestServices:
             logger.info(f"Backtest completed. Final value: {final_value}, Total return: {total_return:.2f}%")
             comprehensive_metrics = self.metrics_calculator.calculate_comprehensive_metrics(results)    
             results.update(comprehensive_metrics)
-            print(generate_backtest_report(results))
             return results
             
         except Exception as e:
