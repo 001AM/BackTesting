@@ -12,10 +12,10 @@ const routesConfig = [
     children: [
       {
         index: true, // Optional: redirect to /home
-        element: <Navigate to="home" replace />
+        element: <Navigate to="" replace />
       },
       {
-        path: "home",
+        path: "",
         element: <Home />
       },
       {

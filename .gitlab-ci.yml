@@ -1,0 +1,163 @@
+stages:
+  - terraform-plan
+  - terraform-apply
+  - build
+  - deploy
+
+variables:
+  TF_BACKEND_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/production"
+  TF_PLAN_FILE: tfplan
+  TF_OUTPUT_FILE: terraform_outputs.json
+
+.terraform_setup: &terraform_setup
+  image: alpine:3.18
+  before_script:
+    - apk add --no-cache curl unzip bash jq
+    - curl -o terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+    - unzip terraform.zip && mv terraform /usr/local/bin/
+    - terraform --version
+    - export TF_HTTP_USERNAME="gitlab-ci-token"
+    - export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
+    - terraform init
+
+terraform_plan:
+  <<: *terraform_setup
+  stage: terraform-plan
+  script:
+    - terraform validate
+    - echo "🔍 Checking for existing infrastructure..."
+    - terraform plan -var="key_name=${EC2_KEY_NAME}" -var="aws_region=us-east-1" -out=$TF_PLAN_FILE
+    - echo "📋 Plan Summary:"
+    - terraform show -no-color $TF_PLAN_FILE | grep -E "(Plan:|No changes)" || true
+  artifacts:
+    paths:
+      - $TF_PLAN_FILE
+    expire_in: 1 hour
+  only:
+    - main
+
+terraform_apply:
+  <<: *terraform_setup
+  stage: terraform-apply
+  dependencies:
+    - terraform_plan
+  script:
+    - echo "🚀 Applying Terraform configuration..."
+    - terraform apply -auto-approve $TF_PLAN_FILE
+    - terraform output -json > $TF_OUTPUT_FILE
+    - echo "📊 Infrastructure Status:"
+    - jq -r '.infrastructure_status.value' < $TF_OUTPUT_FILE
+    - echo "🌐 Server IP:" 
+    - jq -r '.instance_public_ip.value' < $TF_OUTPUT_FILE
+  artifacts:
+    paths:
+      - $TF_OUTPUT_FILE
+    expire_in: 1 week
+  only:
+    - main
+  
+build_image:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+  script:
+    - echo "🔨 Building Docker image..."
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  only:
+    - main
+
+# Add a job to check infrastructure status before deployment
+check_infrastructure:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - terraform_apply
+  before_script:
+    - apk add --no-cache jq
+  script:
+    - echo "🔍 Infrastructure Status Check:"
+    - export INFRA_STATUS=$(jq -r '.infrastructure_status.value' < $TF_OUTPUT_FILE)
+    - export SERVER_IP=$(jq -r '.instance_public_ip.value' < $TF_OUTPUT_FILE)
+    - |
+      if [[ "$INFRA_STATUS" == *"REUSED"* ]]; then
+        echo "✅ Using existing infrastructure - No additional AWS costs!"
+      else
+        echo "🆕 New infrastructure created"
+      fi
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - terraform_apply
+    - build_image
+    - check_infrastructure
+  before_script:
+    - apk add --no-cache openssh curl jq bash
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - export SERVER_IP=$(jq -r '.instance_public_ip.value' < $TF_OUTPUT_FILE)
+    - export INFRA_STATUS=$(jq -r '.infrastructure_status.value' < $TF_OUTPUT_FILE)
+    - test -n "$SERVER_IP" || (echo "❌ SERVER_IP is empty!" && exit 1)
+    
+    # Wait for instance to be ready (especially important for new instances)
+    - echo "⏳ Waiting for EC2 instance to be ready..."
+    - |
+      MAX_ATTEMPTS=30
+      if [[ "$INFRA_STATUS" == *"REUSED"* ]]; then
+        echo "🚀 Using existing infrastructure - reducing wait time"
+        MAX_ATTEMPTS=10
+      fi
+      
+      for i in $(seq 1 $MAX_ATTEMPTS); do
+        if ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null; then
+          echo "✅ SSH connection successful on attempt $i"
+          break
+        fi
+        echo "⌛ SSH attempt $i/$MAX_ATTEMPTS failed, waiting 30 seconds..."
+        sleep 30
+        if [ $i -eq $MAX_ATTEMPTS ]; then
+          echo "❌ SSH connection failed after $MAX_ATTEMPTS attempts"
+          exit 1
+        fi
+      done
+      
+    # Verify SSH connectivity
+    - |
+      ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@$SERVER_IP "
+        echo '✅ SSH connection verified' &&
+        if [[ '$INFRA_STATUS' == *'CREATED'* ]]; then
+          echo '⏳ Waiting for cloud-init (new instance)...' &&
+          sudo cloud-init status --wait
+        fi &&
+        echo '✅ Instance ready' &&
+        docker --version &&
+        echo '✅ Docker is ready'
+      " || (echo "❌ Instance not ready" && exit 1)
+
+  script:
+    - echo "🚚 Copying deployment files to EC2..."
+    - scp -o StrictHostKeyChecking=no docker-compose.prod.yml ubuntu@$SERVER_IP:~/
+    - scp -o StrictHostKeyChecking=no scripts/deploy-prod.sh ubuntu@$SERVER_IP:~/
+    
+    - echo "🚀 Executing code deployment (no infrastructure changes)..."
+    - |
+      ssh -o StrictHostKeyChecking=no ubuntu@$SERVER_IP "
+        chmod +x deploy-prod.sh &&
+        export CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE &&
+        export CI_COMMIT_SHA=$CI_COMMIT_SHA &&
+        export CI_REGISTRY_USER=$CI_REGISTRY_USER &&
+        export CI_REGISTRY_PASSWORD=$CI_REGISTRY_PASSWORD &&
+        echo '🔄 Updating application containers...' &&
+        ./deploy-prod.sh &&
+        echo '✅ Deployment completed successfully!'
+      "
+  only:
+    - main

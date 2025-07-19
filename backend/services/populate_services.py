@@ -192,6 +192,35 @@ class SeleniumScrapper:
         finally:
             self.driver.quit()
 
+    def get_nifty200_symbool(self) -> List[str]:
+        try:
+            url = "https://www.moneycontrol.com/stocks/marketstats/indexcomp.php?optex=NSE&opttopic=indexcomp&index=49"
+            logger.info(f"Navigating to: {url}")
+            self.driver.get(url)
+            
+            # Reduced wait time
+            time.sleep(2)
+            
+            # Try to handle any popups first
+            self._handle_popups()
+            
+            # Try multiple selectors for the company names
+            companies = self._try_multiple_selectors()
+            
+            if not companies:
+                logger.error("No companies found with any selector")
+                return []
+            
+            logger.info(f"✅ Fetched {len(companies)} companies from Moneycontrol")
+            return companies
+
+        except Exception as e:
+            logger.exception("❌ Error fetching Nifty 200 list:")
+            return []
+
+        finally:
+            self.driver.quit()
+            
     def _handle_popups(self):
         """Handle any popups that might appear - optimized"""
         try:
@@ -957,11 +986,14 @@ class FundamentalDataCollector:
             # Process quarterly data
             if not quarterly_financials.empty:
                 success &= self._process_comprehensive_data(company.id, quarterly_financials, quarterly_balance_sheet, quarterly_cash_flow, info, 'Q')
-            
+            if success:
+                self._calculate_company_growth_metrics(company.id)
+            self.update_data_log(company.id,"fundamental","success","fundamental", "")
             return success
 
         except Exception as e:
             logger.error(f"Error collecting fundamental data for {symbol}: {e}")
+            self.update_data_log(company.id,"fundamental","error","fundamental", str(e))
             return False
 
     def _calculate_financial_ratios(self, revenue, net_income, ebitda, operating_income,
@@ -1161,37 +1193,7 @@ class FundamentalDataCollector:
                         current.profit_growth_qoq = self._calculate_growth_rate(
                             current.pat, previous_quarter.pat
                         )
-
-            # ===== MONTHLY DATA (MoM and YoY growth) =====
-            monthly_data = self.db.query(FundamentalData).filter(
-                and_(
-                    FundamentalData.company_id == company_id,
-                    FundamentalData.period_type == 'M',
-                    FundamentalData.close_price.isnot(None))  # At least price should exist
-            ).order_by(FundamentalData.report_date).all()
-            
-            # Calculate monthly growth metrics
-            for i in range(len(monthly_data)):
-                current = monthly_data[i]
-                
-                # Monthly YoY growth (compare with same month previous year)
-                if i >= 12:  # We need at least 12 months of history
-                    previous_year = monthly_data[i-12]
-                    
-                    if current.close_price and previous_year.close_price and previous_year.close_price != 0:
-                        current.price_growth_yoy = self._calculate_growth_rate(
-                            current.close_price, previous_year.close_price
-                        )
-                
-                # Monthly MoM growth (compare with previous month)
-                if i >= 1:
-                    previous_month = monthly_data[i-1]
-                    
-                    if current.close_price and previous_month.close_price and previous_month.close_price != 0:
-                        current.price_growth_mom = self._calculate_growth_rate(
-                            current.close_price, previous_month.close_price
-                        )
-
+           
             # Commit all changes
             self.db.commit()
             logger.debug(f"Successfully calculated growth metrics for company_id: {company_id}")

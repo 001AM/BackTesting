@@ -223,8 +223,10 @@ class PerformanceMetrics:
             return 0.0
             
         # Group transactions by symbol to calculate P&L per trade
+        import copy
+        txs = copy.deepcopy(transaction_history)
         trades = {}
-        for tx in transaction_history:
+        for tx in txs:
             symbol = tx['symbol']
             if symbol not in trades:
                 trades[symbol] = []
@@ -265,8 +267,10 @@ class PerformanceMetrics:
         gross_loss = 0.0
         
         # Group by symbol for P&L calculation
+        import copy
+        txs = copy.deepcopy(transaction_history)
         trades = {}
-        for tx in transaction_history:
+        for tx in txs:
             symbol = tx['symbol']
             if symbol not in trades:
                 trades[symbol] = []
@@ -324,7 +328,8 @@ class PerformanceMetrics:
         (symbol, company_name, company_id), txs = security_data
         
         # Sort all transactions by date
-        txs_sorted = sorted(txs, key=lambda x: x['date'])
+        import copy
+        txs_sorted = sorted(copy.deepcopy(txs), key=lambda x: x['date'])
         
         # Track inventory using FIFO method
         inventory = []

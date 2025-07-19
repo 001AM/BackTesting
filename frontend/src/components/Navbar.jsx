@@ -15,7 +15,6 @@ const Navbar = () => {
       <div className="flex space-x-6 text-base font-[600] text-gray-700">
         <Link to="/backtest" className="hover:text-blue-600 transition-colors">Backtest</Link>
         <Link to="/data" className="hover:text-blue-600 transition-colors">Data</Link>
-        <Link to="/results" className="hover:text-blue-600 transition-colors">Results</Link>
       </div>
     </div>
   );

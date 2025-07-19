@@ -49,7 +49,6 @@ export default function BacktestingPlatform() {
     const res = await api.post("/backtest/backtest", finalConfig)
     console.log("Backtest response:", res.data)
     Setdata(res.data.data)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
     setIsRunning(false);
     setIsExpanded(true);
     setHasResults(true);

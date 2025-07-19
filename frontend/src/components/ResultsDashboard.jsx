@@ -11,7 +11,7 @@ export default function ResultsDashboard({data}) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Backtest Results</h2>
-        <ExportSection />
+        <ExportSection data={data}/>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">

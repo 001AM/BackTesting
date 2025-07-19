@@ -758,8 +758,10 @@ class BackTestServices:
                 }
             }
             
+            print(self.portfolio['transaction_history'][-1])
             logger.info(f"Backtest completed. Final value: {final_value}, Total return: {total_return:.2f}%")
             comprehensive_metrics = self.metrics_calculator.calculate_comprehensive_metrics(results)    
+            print(self.portfolio['transaction_history'][-1])
             results.update(comprehensive_metrics)
             return results
             

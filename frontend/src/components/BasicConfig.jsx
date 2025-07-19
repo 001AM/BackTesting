@@ -27,8 +27,8 @@ export function BasicConfig({ onConfigChange }) {
     return yesterday;
   });
   const [rebalanceFreq, setRebalanceFreq] = useState("quarterly");
-  const [portfolioSize, setPortfolioSize] = useState("20");
-  const [initialCapital, setInitialCapital] = useState("1000000");
+  const [portfolioSize, setPortfolioSize] = useState("5");
+  const [initialCapital, setInitialCapital] = useState("10000");
   const [weightingMethod, setWeightingMethod] = useState("equal");
 
   useEffect(() => {
