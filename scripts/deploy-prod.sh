@@ -39,7 +39,10 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=secure_prod_password_${TIMESTAMP}
 POSTGRES_DB=backtesting_db
 DATABASE_URL=postgresql://postgres:secure_prod_password_${TIMESTAMP}@db:5432/backtesting_db
-
+API_V1_PREFIX=/api/v1
+CORS_ORIGINS=["*"]
+DEBUG=False
+DATABASE_ECHO=False
 # Redis Configuration
 REDIS_URL=redis://redis:6379/0
 

@@ -33,19 +33,25 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 export default function PortfolioAnalytics({ portfolioData }) {
   const [expandedRebalance, setExpandedRebalance] = useState(null);
   // Add these state declarations at the top of your component
-  const [searchQuery, setSearchQuery] = useState('')
-  const [actionFilter, setActionFilter] = useState('all')
-  const [dateFilter, setDateFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState("");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
 
   // Add this filtered transactions calculation
-  
+
   const toggleRebalance = (date) => {
     setExpandedRebalance(expandedRebalance === date ? null : date);
   };
@@ -223,25 +229,20 @@ export default function PortfolioAnalytics({ portfolioData }) {
     },
   ];
 
-  const filteredTransactions = transaction_history.filter(tx => {
+  const filteredTransactions = transaction_history.filter((tx) => {
     // Search filter
-    const matchesSearch = 
+    const matchesSearch =
       tx.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tx.company_name.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    // Action filter
-    const matchesAction = 
-      actionFilter === 'all' || 
-      tx.action === actionFilter
-    
-    // Date filter
-    const matchesDate = 
-      dateFilter === 'all' || 
-      tx.date === dateFilter
-    
-    return matchesSearch && matchesAction && matchesDate
-  })
+      tx.company_name.toLowerCase().includes(searchQuery.toLowerCase());
 
+    // Action filter
+    const matchesAction = actionFilter === "all" || tx.action === actionFilter;
+
+    // Date filter
+    const matchesDate = dateFilter === "all" || tx.date === dateFilter;
+
+    return matchesSearch && matchesAction && matchesDate;
+  });
 
   return (
     <div className="space-y-6">
@@ -716,128 +717,142 @@ export default function PortfolioAnalytics({ portfolioData }) {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center justify-between">
-        <div className="flex items-center">
-          <Clock className="w-5 h-5 mr-2" />
-          Transaction History
-        </div>
-        <Badge variant="secondary">
-          {formatDate(start_date)} → {formatDate(end_date)}
-        </Badge>
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      {/* Search and Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="md:col-span-2">
-          <Input 
-            placeholder="Search by symbol or company..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <Select value={actionFilter} onValueChange={setActionFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="All actions" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All actions</SelectItem>
-            <SelectItem value="BUY">Buy only</SelectItem>
-            <SelectItem value="SELL">Sell only</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={dateFilter} onValueChange={setDateFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="All dates" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All dates</SelectItem>
-            {Array.from(new Set(transaction_history.map(tx => tx.date))).map(date => (
-              <SelectItem key={date} value={date}>
-                {formatDate(date)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Clock className="w-5 h-5 mr-2" />
+                  Transaction History
+                </div>
+                <Badge variant="secondary">
+                  {formatDate(start_date)} → {formatDate(end_date)}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Search and Filter Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="md:col-span-2">
+                  <Input
+                    placeholder="Search by symbol or company..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Select value={actionFilter} onValueChange={setActionFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All actions</SelectItem>
+                    <SelectItem value="BUY">Buy only</SelectItem>
+                    <SelectItem value="SELL">Sell only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All dates" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All dates</SelectItem>
+                    {Array.from(
+                      new Set(transaction_history.map((tx) => tx.date))
+                    ).map((date) => (
+                      <SelectItem key={date} value={date}>
+                        {formatDate(date)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      {/* Clear Filters Button */}
-      {(searchQuery || actionFilter !== 'all' || dateFilter !== 'all') && (
-        <div className="flex justify-end mb-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => {
-              setSearchQuery('')
-              setActionFilter('all')
-              setDateFilter('all')
-            }}
-          >
-            Clear filters
-          </Button>
-        </div>
-      )}
+              {/* Clear Filters Button */}
+              {(searchQuery ||
+                actionFilter !== "all" ||
+                dateFilter !== "all") && (
+                <div className="flex justify-end mb-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setActionFilter("all");
+                      setDateFilter("all");
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
+              )}
 
-      {/* Filtered Transaction Count */}
-      <div className="text-sm text-muted-foreground mb-4">
-        Showing {filteredTransactions.length} of {transaction_history.length} transactions
-      </div>
+              {/* Filtered Transaction Count */}
+              <div className="text-sm text-muted-foreground mb-4">
+                Showing {filteredTransactions.length} of{" "}
+                {transaction_history.length} transactions
+              </div>
 
-      {/* Transaction Timeline */}
-      <div className="space-y-6">
-        <div className="relative">
-          <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-          <div className="space-y-8 pl-8">
-            {filteredTransactions.length > 0 ? (
-              filteredTransactions.map((tx, index) => (
-                <div key={index} className="relative">
-                  <div className="absolute -left-8 top-4 w-4 h-4 rounded-full bg-primary border-4 border-white"></div>
-                  <div className={`p-4 rounded-lg border ${
-                    tx.action === "BUY" 
-                      ? "bg-green-50 border-green-200" 
-                      : "bg-red-50 border-red-200"
-                  }`}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-medium flex items-center">
-                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                            tx.action === "BUY" ? "bg-green-500" : "bg-red-500"
-                          }`}></span>
-                          {tx.symbol} - {tx.action}
+              {/* Transaction Timeline */}
+              <div className="space-y-6">
+                <div className="relative">
+                  <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                  <div className="space-y-8 pl-8">
+                    {filteredTransactions.length > 0 ? (
+                      filteredTransactions.map((tx, index) => (
+                        <div key={index} className="relative">
+                          <div className="absolute -left-8 top-4 w-4 h-4 rounded-full bg-primary border-4 border-white"></div>
+                          <div
+                            className={`p-4 rounded-lg border ${
+                              tx.action === "BUY"
+                                ? "bg-green-50 border-green-200"
+                                : "bg-red-50 border-red-200"
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-medium flex items-center">
+                                  <span
+                                    className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                      tx.action === "BUY"
+                                        ? "bg-green-500"
+                                        : "bg-red-500"
+                                    }`}
+                                  ></span>
+                                  {tx.symbol} - {tx.action}
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-1">
+                                  {formatDate(tx.date)}
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-1">
+                                  {tx.quantity} shares @ ₹{tx.price.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">
+                                  ₹{tx.total_value.toLocaleString()}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Portfolio: ₹
+                                  {tx.portfolio_value.toLocaleString()}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Cash: ₹{tx.cash_balance.toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {formatDate(tx.date)}
-                        </div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {tx.quantity} shares @ ₹{tx.price.toFixed(2)}
-                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No transactions match your filters
                       </div>
-                      <div className="text-right">
-                        <div className="font-medium">₹{tx.total_value.toLocaleString()}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Portfolio: ₹{tx.portfolio_value.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Cash: ₹{tx.cash_balance.toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No transactions match your filters
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-</TabsContent>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
