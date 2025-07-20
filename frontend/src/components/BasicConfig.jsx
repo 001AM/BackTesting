@@ -154,14 +154,14 @@ export function BasicConfig({ onConfigChange }) {
             </Label>
           </div>
           <div className="flex items-center space-x-2">
-            <RadioGroupItem value="market-cap" id="market-cap" />
-            <Label htmlFor="market-cap" className="text-sm">
+            <RadioGroupItem value="market_cap" id="market_cap" />
+            <Label htmlFor="market_cap" className="text-sm">
               Market cap-weighted
             </Label>
           </div>
           <div className="flex items-center space-x-2">
-            <RadioGroupItem value="roce" id="roce" />
-            <Label htmlFor="roce" className="text-sm">
+            <RadioGroupItem value="metric_weighted" id="metric_weighted" />
+            <Label htmlFor="metric_weighted" className="text-sm">
               Metric-weighted (ROCE)
             </Label>
           </div>
