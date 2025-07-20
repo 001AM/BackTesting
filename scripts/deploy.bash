@@ -16,9 +16,9 @@ if [ ! -f ".env" ]; then
     cat > .env << EOF
 # Database Configuration
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=secure_prod_password_${TIMESTAMP}
+POSTGRES_PASSWORD=password
 POSTGRES_DB=backtesting_db
-DATABASE_URL=postgresql://postgres:secure_prod_password_${TIMESTAMP}@db:5432/backtesting_db
+DATABASE_URL=postgresql://postgres:password@db:5432/backtesting_db
 API_V1_PREFIX=/api/v1
 CORS_ORIGINS=["*"]
 DEBUG=True
@@ -28,7 +28,7 @@ REDIS_URL=redis://redis:6379/0
 
 # pgAdmin Configuration
 PGADMIN_DEFAULT_EMAIL=admin@example.com
-PGADMIN_DEFAULT_PASSWORD=admin_secure_${TIMESTAMP}
+PGADMIN_DEFAULT_PASSWORD=adminpassword
 EOF
     echo "✅ .env file created"
 else
