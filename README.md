@@ -40,15 +40,19 @@ git clone https://github.com/001AM/BackTesting.git
 cd BackTesting
 ```
 
-### 🔧 Frontend `.env`
+### 🔧 Frontend `.env` (If you want to use hosted aws backend only then create this .env in frontend folder)
+```bash
+cd frontend
+```
+
 ```env
-#If you want to use hosted aws backend only then create this .env in frontend folder
 VITE_API_URL=http://3.95.224.95:8000/api/v1
 ```
 
 ### 🏗 Deploy
 
 ```bash
+cd scripts
 chmod +x deploy.bash
 ./deploy.bash
 ```

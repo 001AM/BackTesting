@@ -9,10 +9,6 @@ ls -la
 echo "🔄 Pulling latest code..."
 git pull origin main
 
-# Stop any running containers
-echo "🛑 Stopping existing Docker containers..."
-docker compose down
-
 # Create .env file if it doesn't exist
 if [ ! -f ".env" ]; then
     echo "📝 Creating production environment file..."
@@ -38,6 +34,10 @@ EOF
 else
     echo "✅ .env file already exists"
 fi
+
+# Stop any running containers
+echo "🛑 Stopping existing Docker containers..."
+docker compose down
 
 # Build and start Docker services
 echo "🚀 Building and starting Docker services..."
