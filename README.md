@@ -87,28 +87,20 @@ pip install -r requirements.txt
 ### Backend `.env`
 
 ```env
-# Auth
-SECRET_KEY=your-secret-key
-ALGORITHM=HS256
-
-# API
-API_V1_PREFIX=/api/v1
-CORS_ORIGINS=["http://localhost:3000"]
-DEBUG=True
-
-# PostgreSQL
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=password
 POSTGRES_DB=backtesting_db
-DATABASE_URL=postgresql://postgres:password@localhost:5432/backtesting_db
-DATABASE_ASYNC_URL=postgresql+asyncpg://postgres:password@localhost:5432/backtesting_db
-
-# Redis
+DATABASE_URL=postgresql://postgres:password@db:5432/backtesting_db
+API_V1_PREFIX=/api/v1
+CORS_ORIGINS=["*"]
+DEBUG=True
+DATABASE_ECHO=False
+# Redis Configuration
 REDIS_URL=redis://redis:6379/0
 
-# pgAdmin
+# pgAdmin Configuration
 PGADMIN_DEFAULT_EMAIL=admin@example.com
-PGADMIN_DEFAULT_PASSWORD=admin_secure
+PGADMIN_DEFAULT_PASSWORD=adminpassword
 ```
 
 ### Run Backend
