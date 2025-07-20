@@ -52,9 +52,8 @@ VITE_API_URL=http://3.95.224.95:8000/api/v1
 ### 🏗 Deploy
 
 ```bash
-cd scripts
 chmod +x deploy.bash
-./deploy.bash
+./scripts/deploy.bash
 ```
 
 > This script:
