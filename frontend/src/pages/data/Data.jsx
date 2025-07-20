@@ -7,11 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Search, TrendingUp, Building } from "lucide-react"
 import axiosInstance from "@/lib/axios"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, DialogHeader } from "@/components/ui/dialog"
 
 export default function DataPage() {
   const [stocks, setStocks] = useState([])
   const [filteredStocks, setFilteredStocks] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [stats, setStats] = useState({
     totalStocks: 0,
     lastUpdate: "",
@@ -19,6 +22,7 @@ export default function DataPage() {
     sectors: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [symbolToAdd, setSymbolToAdd] = useState("")
 
   useEffect(() => {
     const fetchData = async () => {
@@ -47,6 +51,10 @@ export default function DataPage() {
     fetchData()
   }, [])
 
+  const handleStockInput = (e) => {
+    setSymbolToAdd(e.target.value)
+  }
+
   useEffect(() => {
     const filtered = stocks.filter((stock) =>
       (stock.symbol?.toLowerCase() ?? "").includes(searchTerm.toLowerCase()) ||
@@ -55,6 +63,15 @@ export default function DataPage() {
     )
     setFilteredStocks(filtered)
   }, [searchTerm, stocks])
+
+  const handleAddStock = async () => {
+    try {
+      await axiosInstance.post("populate/populate/add_company/", { symbol_list: [symbolToAdd] } )
+      setDialogOpen(false)
+    } catch (error) {
+      console.error("Failed to add stock", error)
+    }
+  }
 
   if (loading) {
     return (
@@ -68,10 +85,10 @@ export default function DataPage() {
   }
 
   return (
-    <div className="bg-slate-50">
+    <div className="h-11/12 bg-slate-50">
       <div className="container mx-auto px-4 py-8">
         {/* ───────────────── Stats Cards ───────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           <Card><CardContent className="p-4 flex justify-between items-center">
             <div><p className="text-sm text-gray-600">Total Stocks</p><p className="text-2xl font-bold">{stats.totalStocks}</p></div>
             <Building className="h-8 w-8 text-blue-600" />
@@ -90,10 +107,10 @@ export default function DataPage() {
             </div>
           </CardContent></Card>
 
-          <Card><CardContent className="p-4">
+          {/* <Card><CardContent className="p-4">
             <p className="text-sm text-gray-600">Last Updated</p>
             <p className="text-sm font-medium">{stats.lastUpdate}</p>
-          </CardContent></Card>
+          </CardContent></Card> */}
         </div>
 
         {/* ───────────────── Tabs and Stock Table ───────────────── */}
@@ -112,14 +129,41 @@ export default function DataPage() {
                     <CardTitle>Stock Universe</CardTitle>
                     <CardDescription>Complete list of stocks with fundamental data</CardDescription>
                   </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search stocks..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
-                    />
+                  <div className="flex items-center space-x-2">
+                    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline">Add Stock</Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New Stock</DialogTitle>
+                          <DialogDescription>
+                            Add a new stock to the universe for backtesting analysis.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="flex items-center gap-4">
+                            <label htmlFor="symbol" className="text-right">
+                              Symbol
+                            </label>
+                            <Input id="symbol" onChange={()=>handleStockInput(e)} placeholder="e.g., RELIANCE" />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                          <Button onClick={()=>handleAddStock()}>Add Stock</Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search stocks..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 w-64"
+                      />
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -159,8 +203,8 @@ export default function DataPage() {
           <TabsContent value="prices">
             <Card>
               <CardHeader>
-                <CardTitle>Price Data Coverage</CardTitle>
-                <CardDescription>Historical OHLCV data availability across stocks</CardDescription>
+                <CardTitle className="mb-1">Price Data Coverage</CardTitle>
+                <CardDescription className="mb-0.5">Historical OHLCV data availability across stocks</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -170,7 +214,7 @@ export default function DataPage() {
                       <p className="text-sm text-gray-600">Daily Data Coverage</p>
                     </div>
                     <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <p className="text-2xl font-bold text-blue-600">20 Years</p>
+                      <p className="text-2xl font-bold text-blue-600">10 Years</p>
                       <p className="text-sm text-gray-600">Historical Depth</p>
                     </div>
                     <div className="text-center p-4 bg-purple-50 rounded-lg">
@@ -206,8 +250,8 @@ export default function DataPage() {
           <TabsContent value="fundamentals">
             <Card>
               <CardHeader>
-                <CardTitle>Fundamental Data Metrics</CardTitle>
-                <CardDescription>Available financial metrics and ratios for analysis</CardDescription>
+                <CardTitle className="mb-1.5">Fundamental Data Metrics</CardTitle>
+                <CardDescription className="mb-0.5">Available financial metrics and ratios for analysis</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-3 gap-6">
@@ -278,13 +322,13 @@ export default function DataPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                {/* <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <h4 className="font-medium text-yellow-800 mb-2">Data Collection Status</h4>
                   <p className="text-sm text-yellow-700">
                     Fundamental data is updated quarterly after earnings announcements. Next scheduled update: March 31,
                     2024
                   </p>
-                </div>
+                </div> */}
               </CardContent>
             </Card>
           </TabsContent>

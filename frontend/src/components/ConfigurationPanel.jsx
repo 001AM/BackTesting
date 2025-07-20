@@ -12,7 +12,7 @@ import { RefreshCcw } from "lucide-react";
 import { ChevronLeft } from "lucide-react";
 import { useEffect } from "react";
 
-export function ConfigurationPanel({setBasicConfig, setRankingConfig, setFilters, setisExpanded, isRunning, handleRunBacktest, isExpanded}) {
+export function ConfigurationPanel({setBasicConfig, setRankingConfig, setFilters, setisExpanded, isRunning, handleRunBacktest, isExpanded, setSelectedStrategy, rankingConfig, selectedStrategy}) {
   const [openSections, setOpenSections] = useState({
     basic: true,
     filters: true,
@@ -60,17 +60,17 @@ export function ConfigurationPanel({setBasicConfig, setRankingConfig, setFilters
   }
 
   const sections = [
-    { key: "basic", title: "Basic Configuration", component: BasicConfig, propFunctions: setBasicConfig },
-    { key: "filters", title: "Filtering System", component: FilteringSystem, propFunctions: setFilters },
-    { key: "ranking", title: "Ranking System", component: RankingSystem, propFunctions: setRankingConfig },
-    { key: "templates", title: "Strategy Templates", component: StrategyTemplates, propFunctions: setRankingConfig },
+    { key: "basic", title: "Basic Configuration", component: BasicConfig, propFunctions: setBasicConfig, propData: null },
+    { key: "filters", title: "Filtering System", component: FilteringSystem, propFunctions: setFilters, propData: null },
+    { key: "ranking", title: "Ranking System", component: RankingSystem, propFunctions: setRankingConfig, propData: rankingConfig?.ranking_metrics },
+    { key: "templates", title: "Strategy Templates", component: StrategyTemplates, propFunctions: setSelectedStrategy, propData: selectedStrategy },
   ];
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center p-4 rounded-t-lg">
       <h2 className="text-lg font-semibold">Configuration</h2>
-          {isExpanded ? <ChevronRight onClick={()=>toggleSidebar()} className="w-4 h-4" /> : <ChevronLeft onClick={()=>toggleSidebar()} className="w-4 h-4" />}
+          {isExpanded ? <ChevronRight onClick={()=>toggleSidebar()} className="w-4 h-4 hidden lg:block" /> : <ChevronLeft onClick={()=>toggleSidebar()} className="w-4 h-4 hidden lg:block" />}
           </div>
 
       <Card>
@@ -79,11 +79,12 @@ export function ConfigurationPanel({setBasicConfig, setRankingConfig, setFilters
           onClick={handleFilters} disabled={isRunning}
            size="lg" className="w-full">
             {isRunning ? <RefreshCcw className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-            {isExpanded ? "" : (isRunning ? "Running Backtest..." : "Run Backtest")}
+            <span className="lg:hidden">{isRunning ? "Running Backtest..." : "Run Backtest"}</span>
+            <span className="hidden lg:inline">{isExpanded ? "" : (isRunning ? "Running Backtest..." : "Run Backtest")}</span>
           </Button>
         </CardContent>
       </Card>
-      {sections.map(({ key, title, component: Component, propFunctions }) => (
+      {sections.map(({ key, title, component: Component, propFunctions, propData }) => (
         <Card key={key}>
           <Collapsible
             open={openSections[key]}
@@ -104,7 +105,7 @@ export function ConfigurationPanel({setBasicConfig, setRankingConfig, setFilters
             </CollapsibleTrigger>
             <div className={`transition-all duration-200 ${openSections[key] ? 'block' : 'hidden'}`}>
               <CardContent className="m-2">
-                <Component onConfigChange={propFunctions} />
+                <Component onConfigChange={propFunctions} propData={propData}/>
               </CardContent>
             </div>
           </Collapsible>

@@ -11,7 +11,7 @@ const routesConfig = [
     element: <Layout />,
     children: [
       {
-        index: true,
+        path: "",
         element: <Home /> // ✅ Show Home at /
       },
       {

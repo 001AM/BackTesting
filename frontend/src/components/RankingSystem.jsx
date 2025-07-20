@@ -12,10 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Info, X, TrendingUp, TrendingDown } from "lucide-react";
 
@@ -28,17 +25,33 @@ const availableMetrics = [
   { id: "pb_ratio", name: "P/BV", description: "Price to Book Value" },
 ];
 
-export function RankingSystem({onConfigChange}) {
-  const [selectedMetrics, setSelectedMetrics] = useState(["roe", "roce"]);
-  const [metricDirections, setMetricDirections] = useState({
-    roe: "desc",
-    roce: "desc",
-  });
-  const [compositeRanking, setCompositeRanking] = useState(false);
-  const [metricWeights, setMetricWeights] = useState({
-    roe: 50,
-    roce: 50,
-  });
+export function RankingSystem({onConfigChange, propData}) {
+  const [selectedMetrics, setSelectedMetrics] = useState([])
+  const [metricDirections, setMetricDirections] = useState({})
+
+  useEffect(() => {
+    if (!propData || propData.length === 0) return;
+    
+    const metricNames = propData.map(metric => Object.keys(metric)[0]);
+    const newSelected = availableMetrics.map(metric => metric.id).filter(id => metricNames.includes(id)); 
+    const selectionChanged = JSON.stringify(newSelected.sort()) !== JSON.stringify(selectedMetrics.sort());
+    
+    if (selectionChanged) {
+      setSelectedMetrics(newSelected);
+      const newDirections = { ...metricDirections };
+      newSelected.forEach(metric => {
+        if (!(metric in newDirections)) {
+          newDirections[metric] = "desc";
+        }
+      });
+      Object.keys(newDirections).forEach(metric => {
+        if (!newSelected.includes(metric)) {
+          delete newDirections[metric];
+        }
+      });
+      setMetricDirections(newDirections);
+    }
+  }, [propData]);
 
   useEffect(() => {
     if (onConfigChange) {
@@ -57,15 +70,6 @@ export function RankingSystem({onConfigChange}) {
       const updatedMetrics = [...selectedMetrics, metricId];
       setSelectedMetrics(updatedMetrics);
       setMetricDirections({ ...metricDirections, [metricId]: "desc" });
-
-      if (compositeRanking) {
-        const newWeight = 100 / updatedMetrics.length;
-        const updatedWeights = {};
-        updatedMetrics.forEach((id) => {
-          updatedWeights[id] = newWeight;
-        });
-        setMetricWeights(updatedWeights);
-      }
     }
   };
 
@@ -76,10 +80,6 @@ export function RankingSystem({onConfigChange}) {
     const updatedDirections = { ...metricDirections };
     delete updatedDirections[metricId];
     setMetricDirections(updatedDirections);
-
-    const updatedWeights = { ...metricWeights };
-    delete updatedWeights[metricId];
-    setMetricWeights(updatedWeights);
   };
 
   const toggleDirection = (metricId) => {
@@ -87,10 +87,6 @@ export function RankingSystem({onConfigChange}) {
       ...metricDirections,
       [metricId]: metricDirections[metricId] === "asc" ? "desc" : "asc",
     });
-  };
-
-  const updateWeight = (metricId, weight) => {
-    setMetricWeights({ ...metricWeights, [metricId]: weight });
   };
 
   return (
@@ -117,7 +113,6 @@ export function RankingSystem({onConfigChange}) {
             </SelectContent>
           </Select>
         </div>
-
         {/* Selected Metrics */}
         <div className="space-y-3">
           {selectedMetrics.map((metricId) => {
@@ -153,58 +148,6 @@ export function RankingSystem({onConfigChange}) {
               </div>
             );
           })}
-        </div>
-
-        {/* Composite Ranking */}
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="composite"
-              checked={compositeRanking}
-              onCheckedChange={setCompositeRanking}
-            />
-            <Label htmlFor="composite" className="text-sm font-medium">
-              Enable Composite Ranking
-            </Label>
-            <Tooltip>
-              <TooltipTrigger>
-                <Info className="w-4 h-4 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs">
-                  Combine multiple metrics with custom weights to create a single composite score
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-          {compositeRanking && selectedMetrics.length > 0 && (
-            <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
-              <Label className="text-sm font-medium">Metric Weights</Label>
-              {selectedMetrics.map((metricId) => {
-                const metric = availableMetrics.find((m) => m.id === metricId);
-                return (
-                  <div key={metricId} className="flex items-center justify-between">
-                    <span className="text-sm">{metric?.name}</span>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        type="number"
-                        value={metricWeights[metricId] || 0}
-                        onChange={(e) => updateWeight(metricId, Number(e.target.value))}
-                        className="w-16 h-8"
-                        min="0"
-                        max="100"
-                      />
-                      <span className="text-sm text-muted-foreground">%</span>
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="text-xs text-muted-foreground">
-                Total: {Object.values(metricWeights).reduce((sum, weight) => sum + weight, 0)}%
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </TooltipProvider>

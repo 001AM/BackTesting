@@ -5,6 +5,7 @@ import ResultsDashboard from "@/components/ResultsDashboard";
 import { Play } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { api } from "@/lib/axios";
+import { useEffect } from "react";
 
 export default function BacktestingPlatform() {
   const [Data, Setdata] = useState()
@@ -12,6 +13,8 @@ export default function BacktestingPlatform() {
   const [isRunning, setIsRunning] = useState(false);
   const [hasResults, setHasResults] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const [selectedStrategy, setSelectedStrategy] = useState();
 
   const [basicConfig, setBasicConfig] = useState({
     start_date: null,
@@ -37,6 +40,12 @@ export default function BacktestingPlatform() {
     ranking_metrics: [{ roe: true }, { roce: true }],
   });
 
+  useEffect(()=>{
+    if(selectedStrategy) {
+      setRankingConfig(selectedStrategy);
+    }
+  },[selectedStrategy])
+
   const handleRunBacktest = async () => {
     setIsRunning(true);
     const finalConfig = {
@@ -44,15 +53,12 @@ export default function BacktestingPlatform() {
       ...filters,
       ...rankingConfig,
     };
-
-    console.log("Final config:", finalConfig);
     const res = await api.post("/backtest/backtest", finalConfig)
-    console.log("Backtest response:", res.data)
     Setdata(res.data.data)
     setIsRunning(false);
     setIsExpanded(true);
     setHasResults(true);
-  };
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -84,6 +90,9 @@ export default function BacktestingPlatform() {
                 isRunning={isRunning}
                 handleRunBacktest={handleRunBacktest}
                 isExpanded={isExpanded}
+                setSelectedStrategy={setSelectedStrategy}
+                rankingConfig={rankingConfig}
+                selectedStrategy={selectedStrategy}
               />
             </motion.div>
 
