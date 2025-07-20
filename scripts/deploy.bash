@@ -35,6 +35,33 @@ else
     echo "✅ .env file already exists"
 fi
 
+# Create .env file if it doesn't exist
+if [ ! -f "backend/.env" ]; then
+    echo "📝 Creating production environment file..."
+    TIMESTAMP=$(date +%s)
+    cat > backend/.env << EOF
+# Database Configuration
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=password
+POSTGRES_DB=backtesting_db
+DATABASE_URL=postgresql://postgres:password@localhost:5432/backtesting_db
+API_V1_PREFIX=/api/v1
+CORS_ORIGINS=["*"]
+DEBUG=True
+DATABASE_ECHO=False
+# Redis Configuration
+REDIS_URL=redis://redis:6379/0
+
+# pgAdmin Configuration
+PGADMIN_DEFAULT_EMAIL=admin@example.com
+PGADMIN_DEFAULT_PASSWORD=adminpassword
+EOF
+    echo "✅ .env file created"
+else
+    echo "✅ .env file already exists"
+fi
+
+
 # Stop any running containers
 echo "🛑 Stopping existing Docker containers..."
 docker compose down
