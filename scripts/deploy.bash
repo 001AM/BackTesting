@@ -22,12 +22,12 @@ echo "Waiting for the API to be ready..."
 sleep 10  # or use healthcheck/wait-for-it script if needed
 
 # Run Alembic migrations inside the container
-echo "Running Alembic migrations..."
-docker exec -it fastapi_app bash -c "cd backend && alembic upgrade head"
-echo "Migrations completed."
+# echo "Running Alembic migrations..."
+# docker exec -it fastapi_app bash -c "cd backend && alembic upgrade head"
+# echo "Migrations completed."
 
-# Call the API endpoint
-echo "Calling populate companies API..."
-curl -X POST http://localhost:8000/api/v1/populate/populate/companies/
+# # Call the API endpoint
+# echo "Calling populate companies API..."
+# curl -X POST http://localhost:8000/api/v1/populate/populate/companies/
 
 echo "API call completed."

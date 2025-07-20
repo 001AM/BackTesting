@@ -1,8 +1,8 @@
 """inital commit
 
-Revision ID: 5df1e0b9fe58
+Revision ID: 02d0cb3e9810
 Revises: 
-Create Date: 2025-07-17 02:43:26.890853
+Create Date: 2025-07-20 21:44:00.175183
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '5df1e0b9fe58'
+revision: str = '02d0cb3e9810'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -37,39 +37,6 @@ def upgrade() -> None:
     op.create_index('idx_market_cap_category', 'companies', ['market_cap_category'], unique=False)
     op.create_index('idx_sector', 'companies', ['sector'], unique=False)
     op.create_index(op.f('ix_companies_symbol'), 'companies', ['symbol'], unique=True)
-    op.create_table('market_holidays',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('date', sa.Date(), nullable=False),
-    sa.Column('description', sa.String(length=255), nullable=True),
-    sa.Column('exchange', sa.String(length=10), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_market_holidays_date'), 'market_holidays', ['date'], unique=True)
-    op.create_table('users',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('email', sa.String(length=255), nullable=False),
-    sa.Column('username', sa.String(length=50), nullable=False),
-    sa.Column('hashed_password', sa.String(length=255), nullable=False),
-    sa.Column('full_name', sa.String(length=100), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('is_superuser', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('last_login', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('total_requests', sa.Integer(), nullable=True),
-    sa.Column('last_activity_at', sa.DateTime(timezone=True), nullable=True),
-    sa.CheckConstraint("email ~ '^[A-Za-z0-9._%%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'", name='valid_email'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('idx_users_created_at', 'users', ['created_at'], unique=False)
-    op.create_index('idx_users_email_active', 'users', ['email', 'is_active'], unique=False)
-    op.create_index('idx_users_last_activity', 'users', ['last_activity_at'], unique=False)
-    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
-    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
-    op.create_index(op.f('ix_users_is_active'), 'users', ['is_active'], unique=False)
-    op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
     op.create_table('data_update_logs',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('company_id', sa.Integer(), nullable=False),
@@ -116,24 +83,14 @@ def upgrade() -> None:
     sa.Column('gross_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
     sa.Column('operating_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
     sa.Column('net_margin', sa.DECIMAL(precision=8, scale=4), nullable=True),
-    sa.Column('revenue_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
-    sa.Column('profit_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
-    sa.Column('ebitda_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
-    sa.Column('eps_growth_yoy', sa.DECIMAL(precision=10, scale=4), nullable=True),
-    sa.Column('revenue_growth_qoq', sa.DECIMAL(precision=10, scale=4), nullable=True),
-    sa.Column('profit_growth_qoq', sa.DECIMAL(precision=10, scale=4), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.CheckConstraint('profit_growth_yoy >= -100', name='valid_profit_growth'),
-    sa.CheckConstraint('revenue_growth_yoy >= -100', name='valid_revenue_growth'),
     sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('idx_company_report_period', 'fundamental_data', ['company_id', 'report_date', 'period_type'], unique=True)
     op.create_index('idx_market_cap', 'fundamental_data', ['market_cap'], unique=False)
     op.create_index('idx_pe', 'fundamental_data', ['pe_ratio'], unique=False)
-    op.create_index('idx_profit_growth_yoy', 'fundamental_data', ['profit_growth_yoy'], unique=False)
-    op.create_index('idx_revenue_growth_yoy', 'fundamental_data', ['revenue_growth_yoy'], unique=False)
     op.create_index('idx_roce', 'fundamental_data', ['roce'], unique=False)
     op.create_index('idx_roe', 'fundamental_data', ['roe'], unique=False)
     op.create_table('stock_prices',
@@ -163,8 +120,6 @@ def downgrade() -> None:
     op.drop_table('stock_prices')
     op.drop_index('idx_roe', table_name='fundamental_data')
     op.drop_index('idx_roce', table_name='fundamental_data')
-    op.drop_index('idx_revenue_growth_yoy', table_name='fundamental_data')
-    op.drop_index('idx_profit_growth_yoy', table_name='fundamental_data')
     op.drop_index('idx_pe', table_name='fundamental_data')
     op.drop_index('idx_market_cap', table_name='fundamental_data')
     op.drop_index('idx_company_report_period', table_name='fundamental_data')
@@ -172,16 +127,6 @@ def downgrade() -> None:
     op.drop_index('idx_last_update_date', table_name='data_update_logs')
     op.drop_index('idx_company_data_type', table_name='data_update_logs')
     op.drop_table('data_update_logs')
-    op.drop_index(op.f('ix_users_username'), table_name='users')
-    op.drop_index(op.f('ix_users_is_active'), table_name='users')
-    op.drop_index(op.f('ix_users_id'), table_name='users')
-    op.drop_index(op.f('ix_users_email'), table_name='users')
-    op.drop_index('idx_users_last_activity', table_name='users')
-    op.drop_index('idx_users_email_active', table_name='users')
-    op.drop_index('idx_users_created_at', table_name='users')
-    op.drop_table('users')
-    op.drop_index(op.f('ix_market_holidays_date'), table_name='market_holidays')
-    op.drop_table('market_holidays')
     op.drop_index(op.f('ix_companies_symbol'), table_name='companies')
     op.drop_index('idx_sector', table_name='companies')
     op.drop_index('idx_market_cap_category', table_name='companies')

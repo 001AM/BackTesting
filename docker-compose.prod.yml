@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   app:
     image: ${CI_REGISTRY_IMAGE}:${IMAGE_TAG}
@@ -6,15 +8,19 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - app-network
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
+      start_period: 60s
+    # Add a startup delay to ensure database is fully ready
+    entrypoint: ["sh", "-c", "sleep 10 && uvicorn backend.main:app --host 0.0.0.0 --port 8000"]
 
   db:
     image: postgres:15-alpine
@@ -29,10 +35,25 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+      
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -43,7 +64,8 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - app-network

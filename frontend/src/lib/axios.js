@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
-
+console.log(apiUrl)
 const axiosInstance = axios.create({
   baseURL: apiUrl,
   timeout: 10000,
@@ -10,102 +10,6 @@ const axiosInstance = axios.create({
     Accept: "application/json",
   },
 });
-
-
-// Request Interceptor (Fixed to handle token and project correctly)
-axiosInstance.interceptors.request.use(
-  (config) => {
-    // Fixed: Use AND (&&) instead of OR (||) for excluding auth endpoints
-    if (!config.url.includes('/register/') && !config.url.includes('/login/')) {
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("access-token") : null;
-
-      if (token) {
-        config.headers["Authorization"] = `Bearer ${token}`;
-      }
-      
-    }
-
-    // Log request details for debugging
-    console.log("Request Config:", {
-      url: config.url,
-      method: config.method,
-      headers: config.headers,
-      data: config.data
-    });
-
-    return config;
-  },
-  (error) => {
-    console.log("Request Interceptor Error:", error);
-    return Promise.reject(error);
-  }
-);
-
-// Response Interceptor (Enhanced error logging)
-axiosInstance.interceptors.response.use(
-  (response) => {
-    console.log("Response:", {
-      status: response.status,
-      data: response.data
-    });
-    return response;
-  },
-  async (error) => {
-    console.log("Full Axios Error:", {
-      message: error.message,
-      code: error.code,
-      response: error.response ? {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
-      } : 'No response',
-      request: error.request ? 'Request exists' : 'No request',
-    });
-
-    const originalRequest = error.config;
-
-    // Handle token refresh for 401 errors
-    // if (error.response?.status === 401 && !originalRequest._retry) {
-    //   originalRequest._retry = true;
-    //   try {
-    //     const newToken = await refreshToken();
-
-    //     if (typeof window !== "undefined") {
-    //       localStorage.setItem("access-token", newToken);
-    //     }
-
-    //     originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
-    //     return axiosInstance(originalRequest);
-    //   } catch (refreshError) {
-    //     if (typeof window !== "undefined") {
-    //       localStorage.removeItem("access-token");
-    //       localStorage.removeItem("refresh-token");
-    //       window.location.href = "/login";
-    //     }
-    //     return Promise.reject(refreshError);
-    //   }
-    // }
-
-    return Promise.reject(error);
-  }
-);
-
-// Utility function for token refresh (with full URL)
-async function refreshToken() {
-  try {
-    const response = await axios.post(
-      `${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"}/api/refresh-token`,
-      {
-        refreshToken: localStorage.getItem("refresh-token"),
-      }
-    );
-    return response.data.accessToken;
-  } catch (error) {
-    console.log("Token Refresh Error:", error);
-    throw error;
-  }
-}
 
 // Enhanced error handler
 export function handleApiError(error) {

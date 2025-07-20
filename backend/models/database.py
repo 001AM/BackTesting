@@ -1,55 +1,10 @@
 from sqlalchemy import (
-    Column, String, Integer, Boolean, Date, DateTime, Text, JSON, DECIMAL, 
-    ForeignKey, Index, UniqueConstraint, CheckConstraint, Float,
-    BigInteger, SmallInteger, TIMESTAMP, func, text, Table
+    Column, String, Integer, Boolean, Date, DateTime, Text, DECIMAL, 
+    ForeignKey, Index,BigInteger, func
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 from backend.config.database import Base
-from backend.config.settings import settings
-import uuid
-import secrets
-import hashlib
-from datetime import datetime, timezone
-from cryptography.fernet import Fernet
-from typing import Dict, Optional, List
-from enum import Enum
-fernet = Fernet(settings.FERNET_KEY)
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(100))
-    is_active = Column(Boolean, default=True, nullable=False, index=True)
-    is_superuser = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_login = Column(DateTime(timezone=True))
-    deleted_at = Column(DateTime(timezone=True))
-    total_requests = Column(Integer, default=0)
-    last_activity_at = Column(DateTime(timezone=True))
-
-
-    __table_args__ = (
-        Index('idx_users_email_active', 'email', 'is_active'),
-        Index('idx_users_created_at', 'created_at'),
-        Index('idx_users_last_activity', 'last_activity_at'),
-        CheckConstraint(
-            "email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'", 
-            name='valid_email'
-        ),
-    )
-
-    @validates('email')
-    def validate_email(self, key, address):
-        assert '@' in address, "Invalid email address"
-        return address.lower()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Company Table
@@ -104,13 +59,9 @@ class StockPrice(Base):
         Index('idx_date', 'date'),
     )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Fundamental Data Table
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Enhanced FundamentalData class with growth metrics
-
 class FundamentalData(Base):
     __tablename__ = "fundamental_data"
 
@@ -142,29 +93,18 @@ class FundamentalData(Base):
     market_cap = Column(DECIMAL(18, 2))
     shares_outstanding = Column(BigInteger)
 
-    # Existing Metrics & Ratios (as percentages)
-    roce = Column(DECIMAL(8, 4))           # Percentage
-    roe = Column(DECIMAL(8, 4))            # Percentage
-    roa = Column(DECIMAL(8, 4))            # Percentage
+    roce = Column(DECIMAL(8, 4))           
+    roe = Column(DECIMAL(8, 4))            
+    roa = Column(DECIMAL(8, 4))            
     eps = Column(DECIMAL(15, 4))
-    pe_ratio = Column(DECIMAL(15, 6))      # ✅ Available
-    pb_ratio = Column(DECIMAL(15, 6))      # ✅ Available (P/BV)
-    debt_to_equity = Column(DECIMAL(15, 6)) # ✅ Available
-    current_ratio = Column(DECIMAL(15, 6))  # ✅ Available
+    pe_ratio = Column(DECIMAL(15, 6))      
+    pb_ratio = Column(DECIMAL(15, 6))     
+    debt_to_equity = Column(DECIMAL(15, 6)) 
+    current_ratio = Column(DECIMAL(15, 6))  
     quick_ratio = Column(DECIMAL(15, 6))
-    gross_margin = Column(DECIMAL(8, 4))    # Percentage
-    operating_margin = Column(DECIMAL(8, 4)) # Percentage
-    net_margin = Column(DECIMAL(8, 4))      # Percentage
-
-    # NEW: Growth Metrics (stored as percentages)
-    revenue_growth_yoy = Column(DECIMAL(10, 4))  # Year-over-year revenue growth %
-    profit_growth_yoy = Column(DECIMAL(10, 4))   # Year-over-year profit growth %
-    ebitda_growth_yoy = Column(DECIMAL(10, 4))   # Year-over-year EBITDA growth %
-    eps_growth_yoy = Column(DECIMAL(10, 4))      # Year-over-year EPS growth %
-    
-    # Optional: Quarter-over-quarter growth
-    revenue_growth_qoq = Column(DECIMAL(10, 4))  # Quarter-over-quarter revenue growth %
-    profit_growth_qoq = Column(DECIMAL(10, 4))   # Quarter-over-quarter profit growth %
+    gross_margin = Column(DECIMAL(8, 4))    
+    operating_margin = Column(DECIMAL(8, 4)) 
+    net_margin = Column(DECIMAL(8, 4))      
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -178,12 +118,6 @@ class FundamentalData(Base):
         Index('idx_roce', 'roce'),
         Index('idx_pe', 'pe_ratio'),
         Index('idx_market_cap', 'market_cap'),
-        # Add indexes for growth metrics
-        Index('idx_revenue_growth_yoy', 'revenue_growth_yoy'),
-        Index('idx_profit_growth_yoy', 'profit_growth_yoy'),
-        # Constraints for growth metrics (can be negative)
-        CheckConstraint('revenue_growth_yoy >= -100', name='valid_revenue_growth'),
-        CheckConstraint('profit_growth_yoy >= -100', name='valid_profit_growth'),
     )
 
 
@@ -210,15 +144,3 @@ class DataUpdateLog(Base):
         Index('idx_last_update_date', 'last_update_date'),
     )
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Market Holidays
-# ─────────────────────────────────────────────────────────────────────────────
-class MarketHoliday(Base):
-    __tablename__ = "market_holidays"
-
-    id = Column(Integer, primary_key=True)
-    date = Column(Date, nullable=False, unique=True, index=True)
-    description = Column(String(255))
-    exchange = Column(String(10), default='NSE')
-    created_at = Column(DateTime, default=func.now())

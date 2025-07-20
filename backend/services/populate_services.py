@@ -679,8 +679,6 @@ class FundamentalDataCollector:
             # Longer pause between batches for fundamental data
             time.sleep(5)  # Increased delay to avoid rate limiting
         
-        # Calculate growth metrics after all data is collected
-        self._calculate_growth_metrics_for_all_companies()
         
         logger.info(f"Fundamental data collection completed. Failed symbols: {len(self.failed_symbols)}")
         return True
@@ -893,9 +891,7 @@ class FundamentalDataCollector:
             market_cap=None, shares_outstanding=None, roce=None, roe=None,
             roa=None, eps=None, pe_ratio=None, pb_ratio=None,
             debt_to_equity=None, current_ratio=None, quick_ratio=None,
-            gross_margin=None, operating_margin=None, net_margin=None,
-            revenue_growth_yoy=None, profit_growth_yoy=None, ebitda_growth_yoy=None,
-            eps_growth_yoy=None
+            gross_margin=None, operating_margin=None, net_margin=None
         )
         
         try:
@@ -1018,8 +1014,7 @@ class FundamentalDataCollector:
             # Process quarterly data
             if not quarterly_financials.empty:
                 success &= self._process_comprehensive_data(company.id, quarterly_financials, quarterly_balance_sheet, quarterly_cash_flow, info, 'Q')
-            if success:
-                self._calculate_company_growth_metrics(company.id)
+
             self.update_data_log(company.id,"fundamental","success",0, "")
             return success
 
@@ -1123,117 +1118,6 @@ class FundamentalDataCollector:
             logger.error(f"Error calculating ratios: {e}")
         
         return ratios
-
-    def _calculate_growth_metrics_for_all_companies(self):
-        """Calculate growth metrics for all companies after data collection"""
-        logger.info("Calculating growth metrics for all companies...")
-        
-        companies = self.db.query(Company).filter(Company.is_active == True).all()
-        
-        for company in companies:
-            try:
-                self._calculate_company_growth_metrics(company.id)
-            except Exception as e:
-                logger.error(f"Error calculating growth metrics for {company.symbol}: {e}")
-        
-        logger.info("Growth metrics calculation completed")
-
-    def _calculate_company_growth_metrics(self, company_id: int):
-        """
-        Calculate all growth metrics (YoY and QoQ) for a company
-        Handles annual, quarterly, and monthly data with proper period comparisons
-        """
-        try:
-            logger.info(f"Calculating growth metrics for company_id: {company_id}")
-            
-            # ===== ANNUAL DATA (YoY growth) =====
-            annual_data = self.db.query(FundamentalData).filter(
-                and_(
-                    FundamentalData.company_id == company_id,
-                    FundamentalData.period_type == 'A',
-                    FundamentalData.revenue.isnot(None)  # At least revenue should exist
-                )
-            ).order_by(FundamentalData.report_date).all()
-            
-            # Calculate YoY growth for annual data
-            for i in range(1, len(annual_data)):
-                current = annual_data[i]
-                previous = annual_data[i-1]
-                
-                # Revenue Growth
-                if current.revenue and previous.revenue and previous.revenue != 0:
-                    current.revenue_growth_yoy = self._calculate_growth_rate(
-                        current.revenue, previous.revenue
-                    )
-                
-                # Profit Growth
-                if current.pat and previous.pat and previous.pat != 0:
-                    current.profit_growth_yoy = self._calculate_growth_rate(
-                        current.pat, previous.pat
-                    )
-                
-                # EBITDA Growth
-                if current.ebitda and previous.ebitda and previous.ebitda != 0:
-                    current.ebitda_growth_yoy = self._calculate_growth_rate(
-                        current.ebitda, previous.ebitda
-                    )
-                
-                # EPS Growth (if shares outstanding didn't change dramatically)
-                if (current.eps and previous.eps and previous.eps != 0 and
-                    current.shares_outstanding and previous.shares_outstanding and
-                    abs(current.shares_outstanding - previous.shares_outstanding) < 0.1 * previous.shares_outstanding):
-                    current.eps_growth_yoy = self._calculate_growth_rate(
-                        current.eps, previous.eps
-                    )
-
-            # ===== QUARTERLY DATA (QoQ and YoY growth) =====
-            quarterly_data = self.db.query(FundamentalData).filter(
-                and_(
-                    FundamentalData.company_id == company_id,
-                    FundamentalData.period_type == 'Q',
-                    FundamentalData.revenue.isnot(None))
-            ).order_by(FundamentalData.report_date).all()
-            
-            # Calculate quarterly growth metrics
-            for i in range(len(quarterly_data)):
-                current = quarterly_data[i]
-                
-                # Quarterly YoY growth (compare with same quarter previous year)
-                if i >= 4:  # We need at least 4 quarters of history
-                    previous_year = quarterly_data[i-4]
-                    
-                    if current.revenue and previous_year.revenue and previous_year.revenue != 0:
-                        current.revenue_growth_yoy = self._calculate_growth_rate(
-                            current.revenue, previous_year.revenue
-                        )
-                    
-                    if current.pat and previous_year.pat and previous_year.pat != 0:
-                        current.profit_growth_yoy = self._calculate_growth_rate(
-                            current.pat, previous_year.pat
-                        )
-                
-                # Quarterly QoQ growth (compare with previous quarter)
-                if i >= 1:
-                    previous_quarter = quarterly_data[i-1]
-                    
-                    if current.revenue and previous_quarter.revenue and previous_quarter.revenue != 0:
-                        current.revenue_growth_qoq = self._calculate_growth_rate(
-                            current.revenue, previous_quarter.revenue
-                        )
-                    
-                    if current.pat and previous_quarter.pat and previous_quarter.pat != 0:
-                        current.profit_growth_qoq = self._calculate_growth_rate(
-                            current.pat, previous_quarter.pat
-                        )
-           
-            # Commit all changes
-            self.db.commit()
-            logger.debug(f"Successfully calculated growth metrics for company_id: {company_id}")
-            
-        except Exception as e:
-            logger.error(f"Error calculating growth metrics for company_id {company_id}: {str(e)}")
-            self.db.rollback()
-            raise  # Re-raise exception after logging and rollback
 
     def _calculate_growth_rate(self, current_value, previous_value) -> Optional[Decimal]:
         """Calculate growth rate as percentage"""
