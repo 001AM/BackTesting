@@ -23,12 +23,12 @@ export function BasicConfig({ onConfigChange }) {
   const [startDate, setStartDate] = useState(new Date("2023-07-18"));
   const [endDate, setEndDate] = useState(() => {
     const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setDate(yesterday.getDate() - 3);
     return yesterday;
   });
   const [rebalanceFreq, setRebalanceFreq] = useState("quarterly");
-  const [portfolioSize, setPortfolioSize] = useState("5");
-  const [initialCapital, setInitialCapital] = useState("10000");
+  const [portfolioSize, setPortfolioSize] = useState("10");
+  const [initialCapital, setInitialCapital] = useState("100000");
   const [weightingMethod, setWeightingMethod] = useState("equal");
 
   useEffect(() => {
@@ -62,18 +62,22 @@ export function BasicConfig({ onConfigChange }) {
             <Label className="text-xs text-muted-foreground">Start Date</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
+                <Button variant="outline" className="w-fit-content p-1 justify-start text-left font-normal bg-transparent">
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {startDate ? format(startDate, "PPP") : "Pick a date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={startDate}
-                  onSelect={setStartDate}
-                  initialFocus
-                />
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      if (date) setStartDate(date);
+                    }}
+                    defaultMonth={startDate}
+                    initialFocus
+                    className="rounded-md border"
+                  />
               </PopoverContent>
             </Popover>
           </div>
@@ -81,7 +85,7 @@ export function BasicConfig({ onConfigChange }) {
             <Label className="text-xs text-muted-foreground">End Date</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
+                <Button variant="outline" className="w-fit-content p-1 justify-start text-left font-normal bg-transparent">
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {endDate ? format(endDate, "PPP") : "Pick a date"}
                 </Button>
@@ -90,7 +94,10 @@ export function BasicConfig({ onConfigChange }) {
                 <Calendar
                   mode="single"
                   selected={endDate}
-                  onSelect={setEndDate}
+                  onSelect={(date) => {
+                    if (date) setEndDate(date);
+                  }}
+                  defaultMonth={endDate}
                   initialFocus
                 />
               </PopoverContent>
